@@ -23,7 +23,9 @@ func main() {
 	}
 
 	r := gin.Default()
+	r.Use(LoggerMiddleware())
 	r.GET("/ping", ping)
+	r.POST("/queue", addVideoToQueue)
 
 	r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 }
@@ -32,4 +34,20 @@ func ping(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "ping",
 	})
+}
+
+type Video struct {
+	Path string `json:"path"`
+}
+
+func addVideoToQueue(c *gin.Context) {
+	var video Video
+
+	if err := c.ShouldBind(&video); err != nil {
+		c.String(400, err.Error())
+	}
+
+	log.WithFields(StructFields(video)).Debug()
+
+	c.String(200, "Success")
 }

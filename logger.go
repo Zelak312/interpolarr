@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -44,4 +45,25 @@ func SetupLogger() {
 
 	// Adding CLI hook
 	log.AddHook(&cliHook{})
+}
+
+func StructFields(data interface{}) log.Fields {
+	fields := log.Fields{}
+
+	// Use reflection to iterate through the struct's fields and add them to the fields map
+	val := reflect.ValueOf(data)
+	typ := reflect.TypeOf(data)
+
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+		typ = typ.Elem()
+	}
+
+	for i := 0; i < val.NumField(); i++ {
+		fieldName := typ.Field(i).Name
+		fieldValue := val.Field(i).Interface()
+		fields[fieldName] = fieldValue
+	}
+
+	return fields
 }
