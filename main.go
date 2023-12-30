@@ -10,6 +10,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type Video struct {
+	Path string `json:"path"`
+}
+
+var gQueue Queue[Video]
+
 func main() {
 	SetupLogger()
 
@@ -25,6 +31,7 @@ func main() {
 	r := gin.Default()
 	r.Use(LoggerMiddleware())
 	r.GET("/ping", ping)
+	r.GET("/queue", listVideoQueue)
 	r.POST("/queue", addVideoToQueue)
 
 	r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
@@ -36,10 +43,6 @@ func ping(c *gin.Context) {
 	})
 }
 
-type Video struct {
-	Path string `json:"path"`
-}
-
 func addVideoToQueue(c *gin.Context) {
 	var video Video
 
@@ -48,6 +51,11 @@ func addVideoToQueue(c *gin.Context) {
 	}
 
 	log.WithFields(StructFields(video)).Debug()
+	gQueue.Enqueue(video)
 
 	c.String(200, "Success")
+}
+
+func listVideoQueue(c *gin.Context) {
+	c.JSON(200, gQueue.items)
 }
