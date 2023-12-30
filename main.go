@@ -18,6 +18,7 @@ var gQueue Queue[Video]
 
 func main() {
 	SetupLogger()
+	gQueue = NewQueue[Video]()
 
 	// cli arguments
 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")

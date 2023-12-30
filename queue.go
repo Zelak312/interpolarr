@@ -7,6 +7,12 @@ type Queue[T any] struct {
 	lock  sync.Mutex
 }
 
+func NewQueue[T any]() Queue[T] {
+	return Queue[T]{
+		items: make([]T, 0),
+	}
+}
+
 func (q *Queue[T]) Enqueue(item T) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
