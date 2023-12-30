@@ -28,3 +28,4 @@ go.work
 .env
 config.yml
 logs
+interpolarr.db

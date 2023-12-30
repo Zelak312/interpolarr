@@ -12,19 +12,21 @@ import (
 )
 
 type Video struct {
-	ID   int    `json:"id"`
-	Path string `json:"path"`
+	ID         int64  `json:"id"`
+	Path       string `json:"path"`
+	OutputPath string `json:"outPath"`
+	Done       bool   `json:"done"`
 }
 
-func (v Video) GetID() int {
-	return v.ID
-}
-
-var gQueue Queue[Video]
+var gQueue Queue
 
 func main() {
 	SetupLogger()
-	gQueue = NewQueue[Video]()
+	var err error
+	gQueue, err = NewQueue()
+	if err != nil {
+		log.Panic(err)
+	}
 
 	// cli arguments
 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
@@ -66,7 +68,7 @@ func addVideoToQueue(c *gin.Context) {
 
 func delVideoToQueue(c *gin.Context) {
 	idS := c.Param("id")
-	id, err := strconv.Atoi(idS)
+	id, err := strconv.ParseInt(idS, 10, 64)
 	if err != nil {
 		c.String(400, err.Error())
 	}
