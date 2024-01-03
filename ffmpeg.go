@@ -47,7 +47,7 @@ func ExtractFrames(ctx context.Context, inputPath string, outputPath string) (st
 func ConstructVideoTo60FPS(ctx context.Context, inputPath string, audioPath string, outputPath string) (string, error) {
 	inputPathTemplate := path.Join(inputPath, "frame_%08d.png")
 	cmd := exec.CommandContext(ctx, "ffmpeg", "-framerate", "60", "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy",
-		"-crf", "20", "-c:v", "libx264", "-pix_fmt", "yuv420p", outputPath)
+		"-crf", "20", "-c:v", "h264_nvenc", "-pix_fmt", "yuv420p", outputPath)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
