@@ -8,8 +8,12 @@ import (
 )
 
 type Config struct {
-	BindAddress string `yaml:"bindAddress"`
-	Port        int32  `yaml:"port"`
+	BindAddress   string `yaml:"bindAddress"`
+	Port          int32  `yaml:"port"`
+	RifeBinary    string `yaml:"rifeBinary"`
+	ProcessFolder string `yaml:"processFolder"`
+	DatabasePath  string `yaml:"databasePath"`
+	Model         string `yaml:"model"`
 }
 
 func verifyConfig(config *Config) error {
@@ -23,6 +27,22 @@ func verifyConfig(config *Config) error {
 
 	if config.Port == 0 {
 		config.Port = 8090
+	}
+
+	if config.RifeBinary == "" {
+		return errors.New("missing rife binary path in config")
+	}
+
+	if config.ProcessFolder == "" {
+		return errors.New("missing temp process folder in config")
+	}
+
+	if config.DatabasePath == "" {
+		return errors.New("missing database path in config")
+	}
+
+	if config.Model == "" {
+		config.Model = "rife-v4.7"
 	}
 
 	return nil
