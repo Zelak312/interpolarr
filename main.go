@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -22,17 +23,17 @@ var gQueue Queue
 
 func main() {
 	SetupLogger()
-	var err error
-	gQueue, err = NewQueue()
-	if err != nil {
-		log.Panic(err)
-	}
-
 	// cli arguments
 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
 	flag.Parse()
 
 	config, err := GetConfig(*configPath)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	InitQueuePool(config.DatabasePath)
+	gQueue, err = NewQueue()
 	if err != nil {
 		log.Panic(err)
 	}
@@ -44,6 +45,7 @@ func main() {
 	r.POST("/queue", addVideoToQueue)
 	r.DELETE("/queue/:id", delVideoToQueue)
 
+	go StartConsumer(context.Background(), &gQueue, config.ProcessFolder, config.RifeBinary, config.Model)
 	r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 }
 
