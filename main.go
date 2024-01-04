@@ -45,7 +45,7 @@ func main() {
 	r.POST("/queue", addVideoToQueue)
 	r.DELETE("/queue/:id", delVideoToQueue)
 
-	go StartConsumer(context.Background(), &gQueue, config.ProcessFolder, config.RifeBinary, config.Model)
+	go Dispatcher(context.Background(), &gQueue, config.ProcessFolder, config.RifeBinary, config.Model, config.Workers)
 	r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 }
 

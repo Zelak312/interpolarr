@@ -141,20 +141,28 @@ func (q *Queue) Enqueue(item Video) error {
 	return nil
 }
 
-func (q *Queue) Dequeue() (Video, bool, error) {
+func (q *Queue) DequeueVideoByID(videoID int64) (Video, bool, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	if len(q.items) == 0 {
+	index := -1
+	for i, item := range q.items {
+		if item.ID == videoID {
+			index = i
+			break
+		}
+	}
+
+	if index == -1 {
 		return Video{}, false, nil
 	}
 
-	item := q.items[0]
+	item := q.items[index]
 	if err := markVideoAsDone(item.ID); err != nil {
 		return Video{}, false, err
 	}
 
-	q.items = q.items[1:]
+	q.items = append(q.items[:index], q.items[index+1:]...)
 	return item, true, nil
 }
 

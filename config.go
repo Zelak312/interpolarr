@@ -14,6 +14,7 @@ type Config struct {
 	ProcessFolder string `yaml:"processFolder"`
 	DatabasePath  string `yaml:"databasePath"`
 	Model         string `yaml:"model"`
+	Workers       int    `yaml:"workers"`
 }
 
 func verifyConfig(config *Config) error {
@@ -43,6 +44,10 @@ func verifyConfig(config *Config) error {
 
 	if config.Model == "" {
 		config.Model = "rife-v4.7"
+	}
+
+	if config.Workers == 0 {
+		config.Workers = 1
 	}
 
 	return nil
