@@ -30,7 +30,7 @@ func StartConsumer(ctx context.Context, queue *Queue, processFolder string, rife
 
 func processVideo(ctx context.Context, queue *Queue, video Video, processFolder string, rifeBinary string, model string) {
 	log.WithFields(StructFields(video)).Info("Processing video")
-	if _, err := os.Stat(processFolder); err != nil {
+	if _, err := os.Stat(processFolder); err == nil {
 		err := os.RemoveAll(processFolder)
 		if err != nil {
 			log.Panic(err)
@@ -97,6 +97,15 @@ func processVideo(ctx context.Context, queue *Queue, video Video, processFolder 
 	err = os.RemoveAll(processFolder)
 	if err != nil {
 		log.Panic(err)
+	}
+
+	_, found, err := queue.Dequeue()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	if !found {
+		log.Error("Why is video not found?")
 	}
 	log.Debug("Finished processing video")
 }
