@@ -60,6 +60,19 @@ func deleteByID(id int64) error {
 	return err
 }
 
+func markVideoAsDone(videoID int64) error {
+	updateSQL := `UPDATE video SET done = true WHERE id = ?`
+	statement, err := pool.Prepare(updateSQL)
+	if err != nil {
+		return err
+	}
+	defer statement.Close()
+
+	// Execute the statement with the provided video ID
+	_, err = statement.Exec(videoID)
+	return err
+}
+
 type Queue struct {
 	items []Video
 	lock  sync.Mutex
@@ -90,6 +103,14 @@ func NewQueue() (Queue, error) {
 	return Queue{
 		items: videos,
 	}, nil
+}
+
+func (q *Queue) GetItem() (Video, bool) {
+	if len(q.items) == 0 {
+		return Video{}, false
+	}
+
+	return q.items[0], true
 }
 
 func (q *Queue) Enqueue(item Video) error {
@@ -129,7 +150,7 @@ func (q *Queue) Dequeue() (Video, bool, error) {
 	}
 
 	item := q.items[0]
-	if err := deleteByID(item.ID); err != nil {
+	if err := markVideoAsDone(item.ID); err != nil {
 		return Video{}, false, err
 	}
 
