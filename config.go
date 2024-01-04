@@ -8,8 +8,8 @@ import (
 )
 
 type Config struct {
-	BindAddress string
-	Port        int32
+	BindAddress string `yaml:"bindAddress"`
+	Port        int32  `yaml:"port"`
 }
 
 func verifyConfig(config *Config) error {
