@@ -12,9 +12,9 @@ import (
 
 var pool *sql.DB
 
-func init() {
+func InitQueuePool(path string) {
 	var err error
-	pool, err = sql.Open("sqlite", "./interpolarr.db")
+	pool, err = sql.Open("sqlite", path)
 	if err != nil {
 		log.Fatal(err)
 	}
