@@ -26,7 +26,8 @@ func GetVideoFPS(inputPath string) (float64, error) {
 }
 
 func ConvertVideoTo30FPS(ctx context.Context, inputPath string, outputPath string) (string, error) {
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", inputPath, "-filter:v", "fps=30", outputPath)
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-hwaccel", "cuvid", "-c:v", "h264_cuvid",
+		"-i", inputPath, "-filter:v", "fps=30", "-c:v", "h264_nvenc", outputPath)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -39,13 +40,13 @@ func ExtractAudio(ctx context.Context, inputPath string, outputPath string) (str
 
 func ExtractFrames(ctx context.Context, inputPath string, outputPath string) (string, error) {
 	outputPathTemplate := path.Join(outputPath, "frame_%08d.png")
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", inputPath, outputPathTemplate)
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-c:v", "h264_cuvid", "-i", inputPath, "-vsync", "0", outputPathTemplate)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
 func ConstructVideoTo60FPS(ctx context.Context, inputPath string, audioPath string, outputPath string) (string, error) {
-	inputPathTemplate := path.Join(inputPath, "frame_%08d.png")
+	inputPathTemplate := path.Join(inputPath, "%08d.png")
 	cmd := exec.CommandContext(ctx, "ffmpeg", "-framerate", "60", "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy",
 		"-crf", "20", "-c:v", "h264_nvenc", "-pix_fmt", "yuv420p", outputPath)
 	output, err := cmd.CombinedOutput()
