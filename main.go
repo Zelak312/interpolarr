@@ -5,7 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	log "github.com/sirupsen/logrus"
 
@@ -23,10 +26,8 @@ var gQueue Queue
 
 func main() {
 	SetupLogger()
-	// cli arguments
 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
 	flag.Parse()
-
 	config, err := GetConfig(*configPath)
 	if err != nil {
 		log.Panic(err)
@@ -45,7 +46,18 @@ func main() {
 	r.POST("/queue", addVideoToQueue)
 	r.DELETE("/queue/:id", delVideoToQueue)
 
-	go Dispatcher(context.Background(), &gQueue, config.ProcessFolder, config.RifeBinary, config.Model, config.Workers)
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		log.Info(sig, "signal received")
+		ctxCancel()
+		// TODO: add sync group
+		log.Exit(1)
+	}()
+
+	go Dispatcher(ctx, &gQueue, config.ProcessFolder, config.RifeBinary, config.Model, config.Workers)
 	r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 }
 
