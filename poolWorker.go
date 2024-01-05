@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -12,11 +13,11 @@ import (
 
 var workChannel chan Video
 
-func Dispatcher(ctx context.Context, queue *Queue, config *Config) {
+func Dispatcher(ctx context.Context, queue *Queue, config *Config, waitGroup *sync.WaitGroup) {
 	workChannel = make(chan Video, config.Workers)
 
 	for i := 0; i < config.Workers; i++ {
-		go worker(i, ctx, queue, config, workChannel)
+		go worker(i, ctx, queue, config, workChannel, waitGroup)
 	}
 
 	for {
@@ -34,9 +35,11 @@ func Dispatcher(ctx context.Context, queue *Queue, config *Config) {
 	}
 }
 
-func worker(id int, ctx context.Context, queue *Queue, config *Config, workChannel <-chan Video) {
+func worker(id int, ctx context.Context, queue *Queue, config *Config, workChannel <-chan Video, waitGroup *sync.WaitGroup) {
 	for video := range workChannel {
+		waitGroup.Add(1)
 		processVideo(id, ctx, queue, video, config)
+		waitGroup.Done()
 	}
 }
 

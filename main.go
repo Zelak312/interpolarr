@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
@@ -46,6 +47,7 @@ func main() {
 	r.POST("/queue", addVideoToQueue)
 	r.DELETE("/queue/:id", delVideoToQueue)
 
+	var waitGroup sync.WaitGroup
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -53,11 +55,11 @@ func main() {
 		sig := <-sigs
 		log.Info(sig, "signal received")
 		ctxCancel()
-		// TODO: add sync group
+		waitGroup.Wait()
 		log.Exit(1)
 	}()
 
-	go Dispatcher(ctx, &gQueue, &config)
+	go Dispatcher(ctx, &gQueue, &config, &waitGroup)
 	r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 }
 
