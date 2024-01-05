@@ -118,6 +118,16 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, proces
 		log.Panic(err)
 	}
 
+	// make sure the folder exist
+	baseOutputPath := path.Base(video.OutputPath)
+	if _, err := os.Stat(baseOutputPath); err != nil {
+		err := os.MkdirAll(baseOutputPath, os.ModePerm)
+		if err != nil {
+			log.Debug(output)
+			log.Panic(err)
+		}
+	}
+
 	log.Debug("Finished interpolating video")
 	output, err = ConstructVideoTo60FPS(ctx, interpolatedFolder, audioPath, video.OutputPath)
 	if err != nil {
