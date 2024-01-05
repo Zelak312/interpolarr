@@ -57,7 +57,7 @@ func main() {
 		log.Exit(1)
 	}()
 
-	go Dispatcher(ctx, &gQueue, config.ProcessFolder, config.RifeBinary, config.Model, config.Workers)
+	go Dispatcher(ctx, &gQueue, &config)
 	r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 }
 

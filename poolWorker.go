@@ -12,11 +12,11 @@ import (
 
 var workChannel chan Video
 
-func Dispatcher(ctx context.Context, queue *Queue, processFolder string, rifeBinary string, model string, workers int) {
-	workChannel = make(chan Video, workers)
+func Dispatcher(ctx context.Context, queue *Queue, config *Config) {
+	workChannel = make(chan Video, config.Workers)
 
-	for i := 0; i < workers; i++ {
-		go worker(i, ctx, queue, processFolder, rifeBinary, model, workChannel)
+	for i := 0; i < config.Workers; i++ {
+		go worker(i, ctx, queue, config, workChannel)
 	}
 
 	for {
@@ -34,16 +34,16 @@ func Dispatcher(ctx context.Context, queue *Queue, processFolder string, rifeBin
 	}
 }
 
-func worker(id int, ctx context.Context, queue *Queue, processFolder string, rifeBinary string, model string, workChannel <-chan Video) {
+func worker(id int, ctx context.Context, queue *Queue, config *Config, workChannel <-chan Video) {
 	for video := range workChannel {
-		processVideo(id, ctx, queue, video, processFolder, rifeBinary, model)
+		processVideo(id, ctx, queue, video, config)
 	}
 }
 
-func processVideo(id int, ctx context.Context, queue *Queue, video Video, processFolder string, rifeBinary string, model string) {
+func processVideo(id int, ctx context.Context, queue *Queue, video Video, config *Config) {
 	log.WithFields(StructFields(video)).Info("Processing video")
 
-	processFolderWorker := path.Join(processFolder, fmt.Sprintf("worker_%d", id))
+	processFolderWorker := path.Join(config.ProcessFolder, fmt.Sprintf("worker_%d", id))
 	if _, err := os.Stat(processFolderWorker); err == nil {
 		err := os.RemoveAll(processFolderWorker)
 		if err != nil {
@@ -112,7 +112,7 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, proces
 		log.Panic(err)
 	}
 
-	output, err = InterpolateVideo(ctx, rifeBinary, framesFolder, interpolatedFolder, model)
+	output, err = InterpolateVideo(ctx, config.RifeBinary, framesFolder, interpolatedFolder, config.Model)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
