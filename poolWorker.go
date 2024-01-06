@@ -123,7 +123,7 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, config
 	}
 
 	// make sure the folder exist
-	baseOutputPath := path.Base(video.OutputPath)
+	baseOutputPath := path.Dir(video.OutputPath)
 	if _, err := os.Stat(baseOutputPath); err != nil {
 		err := os.MkdirAll(baseOutputPath, os.ModePerm)
 		if err != nil {
