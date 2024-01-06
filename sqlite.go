@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"log"
 	"time"
+
+	_ "github.com/glebarez/go-sqlite"
 )
 
 type Sqlite struct {
