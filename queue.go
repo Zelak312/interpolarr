@@ -2,83 +2,78 @@ package main
 
 import (
 	"sync"
-
-	_ "github.com/glebarez/go-sqlite"
 )
 
 type Queue struct {
-	items []Video
-	lock  sync.Mutex
+	videos []Video
+	lock   sync.Mutex
 }
 
 func NewQueue(videos []Video) (Queue, error) {
 	return Queue{
-		items: videos,
+		videos: videos,
 	}, nil
 }
 
-func (q *Queue) Enqueue(item Video) error {
-	q.lock.Lock()
-	defer q.lock.Unlock()
-
-	q.items = append(q.items, item)
-	return nil
+func (q *Queue) GetVideos() []Video {
+	return q.videos
 }
 
-func (q *Queue) DequeueItem() (Video, bool) {
+func (q *Queue) Enqueue(item Video) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	if len(q.items) == 0 {
+	q.videos = append(q.videos, item)
+}
+
+func (q *Queue) Dequeue() (Video, bool) {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
+	if len(q.videos) == 0 {
 		return Video{}, false
 	}
 
-	video := q.items[0]
-	q.items = q.items[1:]
+	video := q.videos[0]
+	q.videos = q.videos[1:]
 	return video, true
 }
 
-func (q *Queue) DequeueVideoByID(videoID int64) (Video, bool, error) {
+func (q *Queue) RemoveByID(id int64) (Video, bool) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
+	video, index := q.findByIDInternal(id)
+	if index == -1 {
+		return Video{}, false
+	}
+
+	return video, true
+}
+
+func (q *Queue) FindByID(id int64) (Video, int) {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
+	return q.findByIDInternal(id)
+}
+
+func (q *Queue) findByIDInternal(id int64) (Video, int) {
+	if len(q.videos) == 0 {
+		return Video{}, -1
+	}
+
 	index := -1
-	for i, item := range q.items {
-		if item.ID == videoID {
+	for i, item := range q.videos {
+		if item.ID == id {
 			index = i
 			break
 		}
 	}
 
 	if index == -1 {
-		return Video{}, false, nil
+		return Video{}, -1
 	}
 
-	item := q.items[index]
-	q.items = append(q.items[:index], q.items[index+1:]...)
-	return item, true, nil
+	return q.videos[index], index
 }
-
-func (q *Queue) RemoveByID(id int64) (Video, bool, error) {
-	q.lock.Lock()
-	defer q.lock.Unlock()
-
-	for i, item := range q.items {
-		if item.ID == id {
-			q.items = append(q.items[:i], q.items[i+1:]...)
-			return item, true, nil
-		}
-	}
-
-	return Video{}, false, nil
-}
-
-// func (q *Queue) MoveToEnd() {
-// 	q.lock.Lock()
-// 	defer q.lock.Unlock()
-
-// 	if len(q.items) > 0 {
-// 		item := q.items[0]
-// 		q.items = append(q.items[1:], item)
-// 	}
-// }

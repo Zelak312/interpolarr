@@ -25,7 +25,7 @@ func Dispatcher(ctx context.Context, queue *Queue, config *Config, waitGroup *sy
 		case <-ctx.Done():
 			return
 		default:
-			video, ok := queue.DequeueItem()
+			video, ok := queue.Dequeue()
 			if ok {
 				workChannel <- video
 			} else {

@@ -105,9 +105,14 @@ func delVideoToQueue(c *gin.Context) {
 		c.String(400, err.Error())
 	}
 
-	gQueue.RemoveByID(id)
+	video, ok := gQueue.RemoveByID(id)
+	if !ok {
+		c.String(400, "Didn't find video")
+	}
+
+	c.JSON(200, video)
 }
 
 func listVideoQueue(c *gin.Context) {
-	c.JSON(200, gQueue.items)
+	c.JSON(200, gQueue.GetVideos())
 }
