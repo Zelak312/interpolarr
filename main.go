@@ -65,7 +65,8 @@ func main() {
 		log.Exit(1)
 	}()
 
-	go Dispatcher(ctx, &gQueue, &config, &waitGroup)
+	poolWorker := NewPoolWorker(ctx, &gQueue, &config, &waitGroup)
+	go poolWorker.RunDispatcher()
 	r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 }
 

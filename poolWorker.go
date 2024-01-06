@@ -11,21 +11,36 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var workChannel chan Video
+type PoolWorker struct {
+	ctx       context.Context
+	queue     *Queue
+	config    *Config
+	waitGroup *sync.WaitGroup
+}
 
-func Dispatcher(ctx context.Context, queue *Queue, config *Config, waitGroup *sync.WaitGroup) {
-	workChannel = make(chan Video, config.Workers)
+func NewPoolWorker(ctx context.Context, queue *Queue,
+	config *Config, waitGroup *sync.WaitGroup) PoolWorker {
+	return PoolWorker{
+		ctx:       ctx,
+		queue:     queue,
+		config:    config,
+		waitGroup: waitGroup,
+	}
+}
 
-	for i := 0; i < config.Workers; i++ {
-		go worker(i, ctx, queue, config, workChannel, waitGroup)
+func (p *PoolWorker) RunDispatcher() {
+	workChannel := make(chan Video, p.config.Workers)
+
+	for i := 0; i < p.config.Workers; i++ {
+		go p.worker(i, workChannel)
 	}
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-p.ctx.Done():
 			return
 		default:
-			video, ok := queue.Dequeue()
+			video, ok := p.queue.Dequeue()
 			if ok {
 				workChannel <- video
 			} else {
@@ -35,10 +50,10 @@ func Dispatcher(ctx context.Context, queue *Queue, config *Config, waitGroup *sy
 	}
 }
 
-func worker(id int, ctx context.Context, queue *Queue, config *Config, workChannel <-chan Video, waitGroup *sync.WaitGroup) {
+func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 	for video := range workChannel {
-		waitGroup.Add(1)
-		processVideo(id, ctx, queue, video, config)
+		p.waitGroup.Add(1)
+		p.processVideo(id, video)
 		// TODO: dependency injection for sqlite
 		// I don't like the idea of having it global
 		err := sqlite.MarkVideoAsDone(&video)
@@ -46,14 +61,14 @@ func worker(id int, ctx context.Context, queue *Queue, config *Config, workChann
 			log.Panic(err)
 		}
 
-		waitGroup.Done()
+		p.waitGroup.Done()
 	}
 }
 
-func processVideo(id int, ctx context.Context, queue *Queue, video Video, config *Config) {
+func (p *PoolWorker) processVideo(id int, video Video) {
 	log.WithFields(StructFields(video)).Info("Processing video")
 
-	processFolderWorker := path.Join(config.ProcessFolder, fmt.Sprintf("worker_%d", id))
+	processFolderWorker := path.Join(p.config.ProcessFolder, fmt.Sprintf("worker_%d", id))
 	if _, err := os.Stat(processFolderWorker); err == nil {
 		err := os.RemoveAll(processFolderWorker)
 		if err != nil {
@@ -80,7 +95,7 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, config
 	}
 
 	fps30Output := path.Join(processFolderWorker, "video.mp4")
-	output, err := ConvertVideoTo30FPS(ctx, video.Path, fps30Output)
+	output, err := ConvertVideoTo30FPS(p.ctx, video.Path, fps30Output)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
@@ -88,7 +103,7 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, config
 
 	log.Debug("Finished converting to 30 fps")
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
-	output, err = ExtractAudio(ctx, fps30Output, audioPath)
+	output, err = ExtractAudio(p.ctx, fps30Output, audioPath)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
@@ -102,7 +117,7 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, config
 		log.Panic(err)
 	}
 
-	output, err = ExtractFrames(ctx, fps30Output, framesFolder)
+	output, err = ExtractFrames(p.ctx, fps30Output, framesFolder)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
@@ -116,7 +131,7 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, config
 		log.Panic(err)
 	}
 
-	output, err = InterpolateVideo(ctx, config.RifeBinary, framesFolder, interpolatedFolder, config.ModelPath)
+	output, err = InterpolateVideo(p.ctx, p.config.RifeBinary, framesFolder, interpolatedFolder, p.config.ModelPath)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
@@ -133,7 +148,7 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, config
 	}
 
 	log.Debug("Finished interpolating video")
-	output, err = ConstructVideoTo60FPS(ctx, interpolatedFolder, audioPath, video.OutputPath)
+	output, err = ConstructVideoTo60FPS(p.ctx, interpolatedFolder, audioPath, video.OutputPath)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
