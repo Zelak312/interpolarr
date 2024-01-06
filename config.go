@@ -27,7 +27,7 @@ func verifyConfig(config *Config) error {
 	}
 
 	if config.Port == 0 {
-		config.Port = 8090
+		config.Port = 80
 	}
 
 	if config.RifeBinary == "" {
