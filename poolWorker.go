@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path"
 	"sync"
@@ -90,6 +91,10 @@ func (p *PoolWorker) processVideo(id int, video Video) {
 	targetFPS := p.config.MinimumFPS
 	if fps > targetFPS/2 {
 		targetFPS = fps * 2
+	}
+
+	if *p.config.StabilizeFPS {
+		targetFPS = math.Floor(targetFPS)
 	}
 
 	log.Debugf("target FPS: %f", targetFPS)

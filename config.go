@@ -16,6 +16,7 @@ type Config struct {
 	ModelPath     string        `yaml:"modelPath"`
 	Workers       int           `yaml:"workers"`
 	MinimumFPS    float64       `yaml:"minimFPS"`
+	StabilizeFPS  *bool         `yaml:"stabilizeFPS"`
 	FfmpegOptions FfmpegOptions `yaml:"ffmpegOptions,inline"`
 }
 
@@ -65,6 +66,11 @@ func verifyConfig(config *Config) error {
 
 	if config.MinimumFPS == 0 {
 		config.MinimumFPS = 60
+	}
+
+	if config.StabilizeFPS == nil {
+		defaultVal := true
+		config.StabilizeFPS = &defaultVal
 	}
 
 	return nil
