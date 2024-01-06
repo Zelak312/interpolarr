@@ -116,7 +116,7 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, config
 		log.Panic(err)
 	}
 
-	output, err = InterpolateVideo(ctx, config.RifeBinary, framesFolder, interpolatedFolder, config.Model)
+	output, err = InterpolateVideo(ctx, config.RifeBinary, framesFolder, interpolatedFolder, config.ModelPath)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)

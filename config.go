@@ -13,7 +13,7 @@ type Config struct {
 	RifeBinary    string `yaml:"rifeBinary"`
 	ProcessFolder string `yaml:"processFolder"`
 	DatabasePath  string `yaml:"databasePath"`
-	Model         string `yaml:"model"`
+	ModelPath     string `yaml:"modelPath"`
 	Workers       int    `yaml:"workers"`
 }
 
@@ -42,8 +42,8 @@ func verifyConfig(config *Config) error {
 		return errors.New("missing database path in config")
 	}
 
-	if config.Model == "" {
-		config.Model = "rife-v4.7"
+	if config.ModelPath == "" {
+		config.ModelPath = "rife-v4.7"
 	}
 
 	if config.Workers == 0 {
