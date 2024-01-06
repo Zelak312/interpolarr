@@ -87,15 +87,14 @@ func (p *PoolWorker) processVideo(id int, video Video) {
 	}
 
 	log.Debugf("fps: %f", fps)
-	if fps >= 30 {
-		log.Info("FPS is higher then 30, skipping")
-		// TODO: implement real skip, right now it won't skip
-		// it will mark is as done
-		return
+	targetFPS := p.config.MinimumFPS
+	if fps > targetFPS/2 {
+		targetFPS = fps * 2
 	}
 
-	fps30Output := path.Join(processFolderWorker, "video.mp4")
-	output, err := ConvertVideoTo30FPS(p.ctx, p.config.FfmpegOptions, video.Path, fps30Output)
+	log.Debugf("target FPS: %f", targetFPS)
+	fpsConversionOutput := path.Join(processFolderWorker, "video.mp4")
+	output, err := ConvertVideoToFPS(p.ctx, p.config.FfmpegOptions, video.Path, fpsConversionOutput, targetFPS/2)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
@@ -103,7 +102,7 @@ func (p *PoolWorker) processVideo(id int, video Video) {
 
 	log.Debug("Finished converting to 30 fps")
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
-	output, err = ExtractAudio(p.ctx, fps30Output, audioPath)
+	output, err = ExtractAudio(p.ctx, fpsConversionOutput, audioPath)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
@@ -117,7 +116,7 @@ func (p *PoolWorker) processVideo(id int, video Video) {
 		log.Panic(err)
 	}
 
-	output, err = ExtractFrames(p.ctx, p.config.FfmpegOptions, fps30Output, framesFolder)
+	output, err = ExtractFrames(p.ctx, p.config.FfmpegOptions, fpsConversionOutput, framesFolder)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
@@ -148,7 +147,7 @@ func (p *PoolWorker) processVideo(id int, video Video) {
 	}
 
 	log.Debug("Finished interpolating video")
-	output, err = ConstructVideoTo60FPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath)
+	output, err = ConstructVideoToFPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath, targetFPS)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)

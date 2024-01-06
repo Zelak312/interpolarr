@@ -49,8 +49,8 @@ func GetVideoFPS(inputPath string) (float64, error) {
 	return fps, nil
 }
 
-func ConvertVideoTo30FPS(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string) (string, error) {
-	args := []string{"-i", inputPath, "-filter:v", "fps=30"}
+func ConvertVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string, fps float64) (string, error) {
+	args := []string{"-i", inputPath, "-filter:v", fmt.Sprintf("fps=%f", fps)}
 	args = appendHWAccelArgs(args, config)
 	args = appendVideoCodecArgs(args, config)
 	args = append(args, outputPath)
@@ -75,9 +75,9 @@ func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, 
 	return string(output), err
 }
 
-func ConstructVideoTo60FPS(ctx context.Context, config FfmpegOptions, inputPath string, audioPath string, outputPath string) (string, error) {
+func ConstructVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath string, audioPath string, outputPath string, fps float64) (string, error) {
 	inputPathTemplate := path.Join(inputPath, "%08d.png")
-	args := []string{"-framerate", "60", "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy"}
+	args := []string{"-framerate", fmt.Sprintf("%f", fps), "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy"}
 	args = appendHWAccelEncodeArgs(args, config)
 	args = append(args, "-crf", "20", "-pix_fmt", "yuv420p", outputPath)
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
