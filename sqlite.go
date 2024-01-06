@@ -52,7 +52,7 @@ func NewSqlite(path string) Sqlite {
 	}
 }
 
-func (s *Sqlite) GetVideoList() ([]Video, error) {
+func (s *Sqlite) GetVideos() ([]Video, error) {
 	querySQL := `SELECT id, path, output_path, done FROM video WHERE done = false`
 	rows, err := s.pool.Query(querySQL)
 	if err != nil {
@@ -118,7 +118,7 @@ func (s *Sqlite) MarkVideoAsDone(video *Video) error {
 	return nil
 }
 
-func (s *Sqlite) DeleteByID(id int64) error {
+func (s *Sqlite) DeleteVideoByID(id int64) error {
 	deleteSQL := `DELETE FROM video WHERE id = ?`
 	statement, err := s.pool.Prepare(deleteSQL)
 	if err != nil {

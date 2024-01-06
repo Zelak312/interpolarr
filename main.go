@@ -36,7 +36,7 @@ func main() {
 	}
 
 	sqlite = NewSqlite(config.DatabasePath)
-	videos, err := sqlite.GetVideoList()
+	videos, err := sqlite.GetVideos()
 	if err != nil {
 		log.Panic(err)
 	}
@@ -100,7 +100,7 @@ func delVideoToQueue(c *gin.Context) {
 	}
 
 	log.WithField("id", id).Debug()
-	err = sqlite.DeleteByID(id)
+	err = sqlite.DeleteVideoByID(id)
 	if err != nil {
 		c.String(400, err.Error())
 	}
