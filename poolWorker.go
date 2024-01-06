@@ -95,7 +95,7 @@ func (p *PoolWorker) processVideo(id int, video Video) {
 	}
 
 	fps30Output := path.Join(processFolderWorker, "video.mp4")
-	output, err := ConvertVideoTo30FPS(p.ctx, video.Path, fps30Output)
+	output, err := ConvertVideoTo30FPS(p.ctx, p.config.FfmpegOptions, video.Path, fps30Output)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
@@ -117,7 +117,7 @@ func (p *PoolWorker) processVideo(id int, video Video) {
 		log.Panic(err)
 	}
 
-	output, err = ExtractFrames(p.ctx, fps30Output, framesFolder)
+	output, err = ExtractFrames(p.ctx, p.config.FfmpegOptions, fps30Output, framesFolder)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)
@@ -148,7 +148,7 @@ func (p *PoolWorker) processVideo(id int, video Video) {
 	}
 
 	log.Debug("Finished interpolating video")
-	output, err = ConstructVideoTo60FPS(p.ctx, interpolatedFolder, audioPath, video.OutputPath)
+	output, err = ConstructVideoTo60FPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath)
 	if err != nil {
 		log.Debug(output)
 		log.Panic(err)

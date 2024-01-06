@@ -9,6 +9,30 @@ import (
 	"strings"
 )
 
+func appendVideoCodecArgs(args []string, config FfmpegOptions) []string {
+	if config.VideoCodec != "" {
+		args = append(args, "-c:v", config.VideoCodec)
+	}
+	return args
+}
+
+func appendHWAccelArgs(args []string, config FfmpegOptions) []string {
+	if config.HWAccel != "" {
+		args = append(args, "-hwaccel", config.HWAccel)
+	}
+	if config.HWAccelDecodeFlag != "" {
+		args = append(args, "-c:v", config.HWAccelDecodeFlag)
+	}
+	return args
+}
+
+func appendHWAccelEncodeArgs(args []string, config FfmpegOptions) []string {
+	if config.HWAccelEncodeFlag != "" {
+		args = append(args, "-c:v", config.HWAccelEncodeFlag)
+	}
+	return args
+}
+
 func GetVideoFPS(inputPath string) (float64, error) {
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
 	output, err := cmd.Output()
@@ -25,9 +49,12 @@ func GetVideoFPS(inputPath string) (float64, error) {
 	return fps, nil
 }
 
-func ConvertVideoTo30FPS(ctx context.Context, inputPath string, outputPath string) (string, error) {
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-hwaccel", "cuvid", "-c:v", "h264_cuvid",
-		"-i", inputPath, "-filter:v", "fps=30", "-c:v", "h264_nvenc", outputPath)
+func ConvertVideoTo30FPS(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string) (string, error) {
+	args := []string{"-i", inputPath, "-filter:v", "fps=30"}
+	args = appendHWAccelArgs(args, config)
+	args = appendVideoCodecArgs(args, config)
+	args = append(args, outputPath)
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -38,17 +65,22 @@ func ExtractAudio(ctx context.Context, inputPath string, outputPath string) (str
 	return string(output), err
 }
 
-func ExtractFrames(ctx context.Context, inputPath string, outputPath string) (string, error) {
+func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string) (string, error) {
 	outputPathTemplate := path.Join(outputPath, "frame_%08d.png")
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-c:v", "h264_cuvid", "-i", inputPath, "-vsync", "0", outputPathTemplate)
+	args := []string{"-i", inputPath, "-vsync", "0"}
+	args = appendHWAccelArgs(args, config)
+	args = append(args, outputPathTemplate)
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
-func ConstructVideoTo60FPS(ctx context.Context, inputPath string, audioPath string, outputPath string) (string, error) {
+func ConstructVideoTo60FPS(ctx context.Context, config FfmpegOptions, inputPath string, audioPath string, outputPath string) (string, error) {
 	inputPathTemplate := path.Join(inputPath, "%08d.png")
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-framerate", "60", "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy",
-		"-crf", "20", "-c:v", "h264_nvenc", "-pix_fmt", "yuv420p", outputPath)
+	args := []string{"-framerate", "60", "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy"}
+	args = appendHWAccelEncodeArgs(args, config)
+	args = append(args, "-crf", "20", "-pix_fmt", "yuv420p", outputPath)
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }

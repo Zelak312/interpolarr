@@ -8,13 +8,21 @@ import (
 )
 
 type Config struct {
-	BindAddress   string `yaml:"bindAddress"`
-	Port          int32  `yaml:"port"`
-	RifeBinary    string `yaml:"rifeBinary"`
-	ProcessFolder string `yaml:"processFolder"`
-	DatabasePath  string `yaml:"databasePath"`
-	ModelPath     string `yaml:"modelPath"`
-	Workers       int    `yaml:"workers"`
+	BindAddress   string        `yaml:"bindAddress"`
+	Port          int32         `yaml:"port"`
+	RifeBinary    string        `yaml:"rifeBinary"`
+	ProcessFolder string        `yaml:"processFolder"`
+	DatabasePath  string        `yaml:"databasePath"`
+	ModelPath     string        `yaml:"modelPath"`
+	Workers       int           `yaml:"workers"`
+	FfmpegOptions FfmpegOptions `yaml:"ffmpegOptions,inline"`
+}
+
+type FfmpegOptions struct {
+	VideoCodec        string `yaml:"videoCodec"`
+	HWAccel           string `yaml:"HWAccel"`
+	HWAccelDecodeFlag string `yaml:"HWAccelDecodeFlag"`
+	HWAccelEncodeFlag string `yaml:"HWAccelEncodeFlag"`
 }
 
 func verifyConfig(config *Config) error {
@@ -48,6 +56,10 @@ func verifyConfig(config *Config) error {
 
 	if config.Workers == 0 {
 		config.Workers = 1
+	}
+
+	if config.FfmpegOptions.VideoCodec == "" {
+		config.FfmpegOptions.VideoCodec = "libx264"
 	}
 
 	return nil
