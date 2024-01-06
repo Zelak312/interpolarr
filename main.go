@@ -24,6 +24,7 @@ type Video struct {
 }
 
 var gQueue Queue
+var sqlite Sqlite
 
 func main() {
 	SetupLogger()
@@ -34,8 +35,13 @@ func main() {
 		log.Panic(err)
 	}
 
-	InitQueuePool(config.DatabasePath)
-	gQueue, err = NewQueue()
+	sqlite = NewSqlite(config.DatabasePath)
+	videos, err := sqlite.GetVideoList()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	gQueue, err = NewQueue(videos)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -77,8 +83,12 @@ func addVideoToQueue(c *gin.Context) {
 	}
 
 	log.WithFields(StructFields(video)).Debug()
-	gQueue.Enqueue(video)
+	_, err := sqlite.InsertVideo(&video)
+	if err != nil {
+		c.String(400, err.Error())
+	}
 
+	gQueue.Enqueue(video)
 	c.String(200, "Success")
 }
 
@@ -90,6 +100,11 @@ func delVideoToQueue(c *gin.Context) {
 	}
 
 	log.WithField("id", id).Debug()
+	err = sqlite.DeleteByID(id)
+	if err != nil {
+		c.String(400, err.Error())
+	}
+
 	gQueue.RemoveByID(id)
 }
 

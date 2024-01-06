@@ -25,7 +25,7 @@ func Dispatcher(ctx context.Context, queue *Queue, config *Config, waitGroup *sy
 		case <-ctx.Done():
 			return
 		default:
-			video, ok := queue.GetItem()
+			video, ok := queue.DequeueItem()
 			if ok {
 				workChannel <- video
 			} else {
@@ -39,6 +39,13 @@ func worker(id int, ctx context.Context, queue *Queue, config *Config, workChann
 	for video := range workChannel {
 		waitGroup.Add(1)
 		processVideo(id, ctx, queue, video, config)
+		// TODO: dependency injection for sqlite
+		// I don't like the idea of having it global
+		err := sqlite.MarkVideoAsDone(&video)
+		if err != nil {
+			log.Panic(err)
+		}
+
 		waitGroup.Done()
 	}
 }
@@ -67,14 +74,8 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, config
 	log.Debugf("fps: %f", fps)
 	if fps >= 30 {
 		log.Info("FPS is higher then 30, skipping")
-		_, found, err := queue.DequeueVideoByID(video.ID)
-		if err != nil {
-			log.Panic(err)
-		}
-
-		if !found {
-			log.Error("Why is video not found?")
-		}
+		// TODO: implement real skip, right now it won't skip
+		// it will mark is as done
 		return
 	}
 
@@ -142,14 +143,4 @@ func processVideo(id int, ctx context.Context, queue *Queue, video Video, config
 	if err != nil {
 		log.Panic(err)
 	}
-
-	_, found, err := queue.DequeueVideoByID(video.ID)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	if !found {
-		log.Error("Why is video not found?")
-	}
-	log.Debug("Finished processing video")
 }
