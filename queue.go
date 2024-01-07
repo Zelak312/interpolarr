@@ -16,6 +16,9 @@ func NewQueue(videos []Video) (Queue, error) {
 }
 
 func (q *Queue) GetVideos() []Video {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
 	return q.videos
 }
 
