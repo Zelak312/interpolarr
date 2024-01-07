@@ -35,6 +35,7 @@ func main() {
 		log.Panic(err)
 	}
 
+	log.WithFields(StructFields(config)).Debug("Parsed config")
 	sqlite = NewSqlite(config.DatabasePath)
 	videos, err := sqlite.GetVideos()
 	if err != nil {
