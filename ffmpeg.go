@@ -13,6 +13,7 @@ func appendVideoCodecArgs(args []string, config FfmpegOptions) []string {
 	if config.VideoCodec != "" {
 		args = append(args, "-c:v", config.VideoCodec)
 	}
+
 	return args
 }
 
@@ -20,9 +21,11 @@ func appendHWAccelArgs(args []string, config FfmpegOptions) []string {
 	if config.HWAccel != "" {
 		args = append(args, "-hwaccel", config.HWAccel)
 	}
+
 	if config.HWAccelDecodeFlag != "" {
 		args = append(args, "-c:v", config.HWAccelDecodeFlag)
 	}
+
 	return args
 }
 
@@ -30,6 +33,7 @@ func appendHWAccelEncodeArgs(args []string, config FfmpegOptions) []string {
 	if config.HWAccelEncodeFlag != "" {
 		args = append(args, "-c:v", config.HWAccelEncodeFlag)
 	}
+
 	return args
 }
 
@@ -51,8 +55,9 @@ func GetVideoFPS(ctx context.Context, inputPath string) (float64, error) {
 }
 
 func ConvertVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string, fps float64) (string, error) {
-	args := []string{"-i", inputPath, "-filter:v", fmt.Sprintf("fps=%g", fps)}
+	args := []string{}
 	args = appendHWAccelArgs(args, config)
+	args = append(args, "-i", inputPath, "-filter:v", fmt.Sprintf("fps=%g", fps))
 	args = appendVideoCodecArgs(args, config)
 	args = append(args, outputPath)
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
@@ -68,9 +73,12 @@ func ExtractAudio(ctx context.Context, inputPath string, outputPath string) (str
 
 func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string) (string, error) {
 	outputPathTemplate := path.Join(outputPath, "frame_%08d.png")
-	args := []string{"-i", inputPath, "-vsync", "0"}
-	args = appendHWAccelArgs(args, config)
-	args = append(args, outputPathTemplate)
+	args := []string{}
+	if config.HWAccelDecodeFlag != "" {
+		args = append(args, "-c:v", config.HWAccelDecodeFlag)
+	}
+
+	args = append(args, "-i", inputPath, "-fps_mode", "passthrough", outputPathTemplate)
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
