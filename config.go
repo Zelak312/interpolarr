@@ -17,7 +17,7 @@ type Config struct {
 	Workers       int           `yaml:"workers"`
 	MinimumFPS    float64       `yaml:"minimFPS"`
 	StabilizeFPS  *bool         `yaml:"stabilizeFPS"`
-	FfmpegOptions FfmpegOptions `yaml:"ffmpegOptions,inline"`
+	FfmpegOptions FfmpegOptions `yaml:"ffmpegOptions"`
 }
 
 type FfmpegOptions struct {
