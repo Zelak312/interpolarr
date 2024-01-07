@@ -119,7 +119,7 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, error) {
 		return output, err
 	}
 
-	log.Debugf("Finished converting to %g fps", targetFPS)
+	log.Debugf("Finished converting to %g fps", targetFPS/2)
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
 	output, err = ExtractAudio(p.ctx, fpsConversionOutput, audioPath)
 	if err != nil {
