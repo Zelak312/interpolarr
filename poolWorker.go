@@ -102,7 +102,7 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, error) {
 		return "", err
 	}
 
-	log.Debugf("fps: %f", fps)
+	log.Debugf("fps: %g", fps)
 	targetFPS := p.config.MinimumFPS
 	if fps > targetFPS/2 {
 		targetFPS = fps * 2
@@ -112,14 +112,14 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, error) {
 		targetFPS = math.Floor(targetFPS)
 	}
 
-	log.Debugf("target FPS: %f", targetFPS)
+	log.Debugf("target FPS: %g", targetFPS)
 	fpsConversionOutput := path.Join(processFolderWorker, "video.mp4")
 	output, err := ConvertVideoToFPS(p.ctx, p.config.FfmpegOptions, video.Path, fpsConversionOutput, targetFPS/2)
 	if err != nil {
 		return output, err
 	}
 
-	log.Debug("Finished converting to 30 fps")
+	log.Debugf("Finished converting to %g fps", targetFPS)
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
 	output, err = ExtractAudio(p.ctx, fpsConversionOutput, audioPath)
 	if err != nil {
