@@ -33,8 +33,9 @@ func appendHWAccelEncodeArgs(args []string, config FfmpegOptions) []string {
 	return args
 }
 
-func GetVideoFPS(inputPath string) (float64, error) {
-	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
+func GetVideoFPS(ctx context.Context, inputPath string) (float64, error) {
+	cmd := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0",
+		"-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
 	output, err := cmd.Output()
 	if err != nil {
 		return 0, err

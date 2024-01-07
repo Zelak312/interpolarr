@@ -82,7 +82,7 @@ func (p *PoolWorker) processVideo(id int, video Video) {
 		log.Panic(err)
 	}
 
-	fps, err := GetVideoFPS(video.Path)
+	fps, err := GetVideoFPS(p.ctx, video.Path)
 	if err != nil {
 		log.Panic(err)
 	}
