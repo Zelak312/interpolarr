@@ -62,6 +62,10 @@ func main() {
 		sig := <-sigs
 		log.Info(sig, "signal received")
 		ctxCancel()
+
+		// TODO: add goroutine timer
+		// if it takes too long for waiting
+		// close the program by force
 		waitGroup.Wait()
 		log.Exit(1)
 	}()

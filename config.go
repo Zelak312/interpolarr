@@ -15,7 +15,7 @@ type Config struct {
 	DatabasePath  string        `yaml:"databasePath"`
 	ModelPath     string        `yaml:"modelPath"`
 	Workers       int           `yaml:"workers"`
-	MinimumFPS    float64       `yaml:"minimFPS"`
+	TargetFPS     float64       `yaml:"targetFPS"`
 	StabilizeFPS  *bool         `yaml:"stabilizeFPS"`
 	FfmpegOptions FfmpegOptions `yaml:"ffmpegOptions"`
 }
@@ -64,8 +64,8 @@ func verifyConfig(config *Config) error {
 		config.FfmpegOptions.VideoCodec = "libx264"
 	}
 
-	if config.MinimumFPS == 0 {
-		config.MinimumFPS = 60
+	if config.TargetFPS == 0 {
+		config.TargetFPS = 60
 	}
 
 	if config.StabilizeFPS == nil {
