@@ -57,10 +57,13 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 		p.waitGroup.Add(1)
 		output, skip, err := p.processVideo(id, video)
 		// check if context was canceled
-		if p.ctx.Err() == context.Canceled {
-			log.Debug("Ctx was canceled")
-			p.waitGroup.Done()
-			return
+		if p.ctx.Err() != nil {
+			log.Debugf("Ctx error is: %s", p.ctx.Err())
+			if p.ctx.Err() == context.Canceled {
+				log.Debug("Ctx was canceled")
+				p.waitGroup.Done()
+				return
+			}
 		}
 
 		if err != nil {
