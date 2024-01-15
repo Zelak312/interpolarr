@@ -3,31 +3,19 @@ package main
 import (
 	"context"
 	"database/sql"
+	"embed"
+	"io/fs"
 	"log"
 	"time"
 
 	_ "github.com/glebarez/go-sqlite"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
 type Sqlite struct {
 	pool *sql.DB
-}
-
-func createTables(pool *sql.DB) error {
-	_, err := pool.Query(`
-	CREATE TABLE IF NOT EXISTS video (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		path TEXT NOT NULL,
-		output_path TEXT NOT NULL,
-		done BOOLEAN
-	);	
-	`)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func NewSqlite(path string) Sqlite {
@@ -45,12 +33,38 @@ func NewSqlite(path string) Sqlite {
 		log.Fatalf("unable to connect to database: %v", err)
 	}
 
-	if err = createTables(pool); err != nil {
+	return Sqlite{
+		pool: pool,
+	}
+}
+
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
+
+func (s *Sqlite) RunMigrations() {
+	migrationFs, err := fs.Sub(embedMigrations, "migrations")
+	if err != nil {
+		log.Fatalf("failed to create fs.FS: %v", err)
+	}
+
+	d, err := iofs.New(migrationFs, ".")
+	if err != nil {
+		log.Fatalf("failed to create new instance: %v", err)
+	}
+
+	driver, err := sqlite3.WithInstance(s.pool, &sqlite3.Config{})
+	if err != nil {
 		log.Fatal(err)
 	}
 
-	return Sqlite{
-		pool: pool,
+	m, err := migrate.NewWithInstance("iofs", d, "sqlite3", driver)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = m.Up()
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
