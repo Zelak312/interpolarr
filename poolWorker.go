@@ -50,12 +50,14 @@ func (p *PoolWorker) RunDispatcher() {
 	}
 }
 
+var retryLimit int = 5
+
 // Make sure to call waitGroup.Done() at when no errors
 // Otherwise the cancel process will get stuck waiting
 func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 	for video := range workChannel {
 		p.waitGroup.Add(1)
-		output, skip, err := p.processVideo(id, video)
+		output, skip, processError := p.processVideo(id, video)
 		// check if context was canceled
 		if p.ctx.Err() != nil {
 			log.Debugf("Ctx error is: %s", p.ctx.Err())
@@ -66,7 +68,7 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			}
 		}
 
-		if err != nil {
+		if processError != nil {
 			if output != "" {
 				log.Debug(output)
 			}
@@ -74,6 +76,20 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			// Put video at the back of the queue
 			// TODO: make a retry counter to drop the video
 			// if it has failed to many times
+			retries, err := sqlite.GetVideoRetries(&video)
+			if err != nil {
+				log.Panic(err)
+			}
+
+			if retries >= retryLimit {
+				sqlite.FailVideo(&video, output, processError.Error())
+				p.waitGroup.Done()
+				return
+			} else {
+				retries++
+				sqlite.UpdateVideoRetries(&video, retries)
+			}
+
 			p.queue.Enqueue(video)
 			p.waitGroup.Done()
 			return
@@ -82,7 +98,7 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 		// TODO: dependency injection for sqlite
 		// I don't like the idea of having it global
 		if !skip {
-			err = sqlite.MarkVideoAsDone(&video)
+			err := sqlite.MarkVideoAsDone(&video)
 			if err != nil {
 				log.Panic(err)
 			}

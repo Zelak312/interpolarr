@@ -134,6 +134,55 @@ func (s *Sqlite) MarkVideoAsDone(video *Video) error {
 	return nil
 }
 
+func (s *Sqlite) GetVideoRetries(video *Video) (int, error) {
+	getRetrySQL := `SELECT retries FROM video WHERE id = ?`
+	statement, err := s.pool.Prepare(getRetrySQL)
+	if err != nil {
+		return 0, err
+	}
+	defer statement.Close()
+
+	retries := 0
+	err = statement.QueryRow(video.ID).Scan(&retries)
+	if err != nil {
+		return 0, err
+	}
+
+	return retries, nil
+}
+
+func (s *Sqlite) UpdateVideoRetries(video *Video, retries int) error {
+	updateSQL := `UPDATE video SET retries = ? WHERE id = ?`
+	statement, err := s.pool.Prepare(updateSQL)
+	if err != nil {
+		return err
+	}
+	defer statement.Close()
+
+	_, err = statement.Exec(retries, video.ID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Sqlite) FailVideo(video *Video, output string, progErr string) error {
+	insertSQL := `INSERT INTO failed_videos (video_id, ffmpeg_output, error) VALUES (?, ?, ?)`
+	statement, err := s.pool.Prepare(insertSQL)
+	if err != nil {
+		return err
+	}
+
+	defer statement.Close()
+	_, err = statement.Exec(video.ID, output, progErr)
+	if err != nil {
+		return err
+	}
+
+	return s.DeleteVideoByID(video.ID)
+}
+
 func (s *Sqlite) DeleteVideoByID(id int64) error {
 	deleteSQL := `DELETE FROM video WHERE id = ?`
 	statement, err := s.pool.Prepare(deleteSQL)
