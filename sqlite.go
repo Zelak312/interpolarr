@@ -63,7 +63,7 @@ func (s *Sqlite) RunMigrations() {
 	}
 
 	err = m.Up()
-	if err != nil {
+	if err != nil && err.Error() != "no change" {
 		log.Fatal(err)
 	}
 }
