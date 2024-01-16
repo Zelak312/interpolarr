@@ -108,7 +108,7 @@ func delVideoToQueue(c *gin.Context) {
 	}
 
 	log.WithField("id", id).Debug()
-	err = sqlite.DeleteVideoByID(id)
+	err = sqlite.DeleteVideoByID(nil, id)
 	if err != nil {
 		c.String(400, err.Error())
 	}

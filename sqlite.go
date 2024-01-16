@@ -168,8 +168,19 @@ func (s *Sqlite) UpdateVideoRetries(video *Video, retries int) error {
 }
 
 func (s *Sqlite) FailVideo(video *Video, output string, progErr string) error {
+	tx, err := s.pool.Begin()
+	if err != nil {
+		return nil
+	}
+
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
 	insertSQL := `INSERT INTO failed_videos (video_id, ffmpeg_output, error) VALUES (?, ?, ?)`
-	statement, err := s.pool.Prepare(insertSQL)
+	statement, err := tx.Prepare(insertSQL)
 	if err != nil {
 		return err
 	}
@@ -180,12 +191,20 @@ func (s *Sqlite) FailVideo(video *Video, output string, progErr string) error {
 		return err
 	}
 
-	return s.DeleteVideoByID(video.ID)
+	err = s.DeleteVideoByID(tx, video.ID)
+	return err
 }
 
-func (s *Sqlite) DeleteVideoByID(id int64) error {
+func (s *Sqlite) DeleteVideoByID(tx *sql.Tx, id int64) error {
 	deleteSQL := `DELETE FROM video WHERE id = ?`
-	statement, err := s.pool.Prepare(deleteSQL)
+	var statement *sql.Stmt
+	var err error
+	if tx != nil {
+		statement, err = tx.Prepare(deleteSQL)
+	} else {
+		statement, err = s.pool.Prepare(deleteSQL)
+	}
+
 	if err != nil {
 		return err
 	}
