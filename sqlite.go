@@ -79,7 +79,7 @@ func (s *Sqlite) GetVideos() ([]Video, error) {
 	videos := []Video{}
 	for rows.Next() {
 		var v Video
-		if err := rows.Scan(&v.ID, &v.Path, &v.OutputPath, &v.Done); err != nil {
+		if err := rows.Scan(&v.ID, &v.Path, &v.OutputPath); err != nil {
 			return videos, err
 		}
 		videos = append(videos, v)
@@ -101,8 +101,7 @@ func (s *Sqlite) InsertVideo(video *Video) (int64, error) {
 	}
 
 	defer statement.Close()
-	video.Done = false
-	result, err := statement.Exec(video.Path, video.OutputPath, video.Done)
+	result, err := statement.Exec(video.Path, video.OutputPath, false)
 	if err != nil {
 		return 0, err
 	}
@@ -130,7 +129,6 @@ func (s *Sqlite) MarkVideoAsDone(video *Video) error {
 		return err
 	}
 
-	video.Done = true
 	return nil
 }
 

@@ -20,7 +20,6 @@ type Video struct {
 	ID         int64  `json:"id"`
 	Path       string `json:"path"`
 	OutputPath string `json:"outPath"`
-	Done       bool   `json:"done"`
 }
 
 var gQueue Queue
