@@ -16,7 +16,7 @@ type Config struct {
 	ModelPath     string        `yaml:"modelPath"`
 	Workers       int           `yaml:"workers"`
 	TargetFPS     float64       `yaml:"targetFPS"`
-	StabilizeFPS  *bool         `yaml:"stabilizeFPS"`
+	BypassHighFPS *bool         `yaml:"bypassHighFPS"`
 	FfmpegOptions FfmpegOptions `yaml:"ffmpegOptions"`
 }
 
@@ -68,9 +68,9 @@ func verifyConfig(config *Config) error {
 		config.TargetFPS = 60
 	}
 
-	if config.StabilizeFPS == nil {
+	if config.BypassHighFPS == nil {
 		defaultVal := true
-		config.StabilizeFPS = &defaultVal
+		config.BypassHighFPS = &defaultVal
 	}
 
 	return nil

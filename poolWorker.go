@@ -142,7 +142,12 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 	log.Debugf("target FPS: %g", targetFPS)
 
 	if fps >= targetFPS {
-		log.Debug(`Video is already higher or equal to target FPS, skipping)`)
+		log.Debug(`Video is already higher or equal to target FPS, skipping`)
+		return "", true, nil
+	}
+
+	if *p.config.BypassHighFPS && fps > targetFPS / 2 {
+		log.Debug("Bypassing video because of high FPS, skipping")
 		return "", true, nil
 	}
 
