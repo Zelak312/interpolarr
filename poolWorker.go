@@ -102,6 +102,19 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			if err != nil {
 				log.Panic(err)
 			}
+		} else {
+			log.Debug("Copying file to destination since it has been skipped")
+			if video.Path != video.OutputPath {
+				err := CopyFile(video.Path, video.OutputPath)
+				if err != nil {
+					log.Panic(err)
+				}
+			}
+
+			err := sqlite.DeleteVideoByID(nil, video.ID)
+			if err != nil {
+				log.Panic(err)
+			}
 		}
 
 		p.waitGroup.Done()
@@ -134,7 +147,7 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 	log.Debugf("target FPS: %g", targetFPS)
 
 	if fps >= targetFPS {
-		log.Debug("Video is already higher or equal to target FPS, skipping")
+		log.Debug(`Video is already higher or equal to target FPS, skipping)`)
 		return "", true, nil
 	}
 
