@@ -132,11 +132,6 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 		}
 	}
 
-	err := os.MkdirAll(processFolderWorker, os.ModePerm)
-	if err != nil {
-		return "", false, err
-	}
-
 	fps, err := GetVideoFPS(p.ctx, video.Path)
 	if err != nil {
 		return "", false, err
@@ -149,6 +144,11 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 	if fps >= targetFPS {
 		log.Debug(`Video is already higher or equal to target FPS, skipping)`)
 		return "", true, nil
+	}
+
+	err = os.MkdirAll(processFolderWorker, os.ModePerm)
+	if err != nil {
+		return "", false, err
 	}
 
 	fpsConversionOutput := path.Join(processFolderWorker, "video.mp4")
