@@ -146,7 +146,7 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 		return "", true, nil
 	}
 
-	if *p.config.BypassHighFPS && fps > targetFPS / 2 {
+	if *p.config.BypassHighFPS && fps > targetFPS/2 {
 		log.Debug("Bypassing video because of high FPS, skipping")
 		return "", true, nil
 	}
@@ -206,6 +206,17 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 	output, err = ConstructVideoToFPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath, targetFPS)
 	if err != nil {
 		return output, false, err
+	}
+
+	if *p.config.DeleteInputFileWhenFinished {
+		err = os.Remove(video.Path)
+		if err != nil {
+			// TODO: should actually panic
+			// This shouldn't happen normally
+			// Acutally it should panic, it should log it thought
+			// But not count as an error, I want it to be 24/7
+			return "", false, err
+		}
 	}
 
 	err = os.RemoveAll(processFolderWorker)

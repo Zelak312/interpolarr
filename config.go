@@ -8,16 +8,17 @@ import (
 )
 
 type Config struct {
-	BindAddress   string        `yaml:"bindAddress"`
-	Port          int32         `yaml:"port"`
-	RifeBinary    string        `yaml:"rifeBinary"`
-	ProcessFolder string        `yaml:"processFolder"`
-	DatabasePath  string        `yaml:"databasePath"`
-	ModelPath     string        `yaml:"modelPath"`
-	Workers       int           `yaml:"workers"`
-	TargetFPS     float64       `yaml:"targetFPS"`
-	BypassHighFPS *bool         `yaml:"bypassHighFPS"`
-	FfmpegOptions FfmpegOptions `yaml:"ffmpegOptions"`
+	BindAddress                 string        `yaml:"bindAddress"`
+	Port                        int32         `yaml:"port"`
+	RifeBinary                  string        `yaml:"rifeBinary"`
+	ProcessFolder               string        `yaml:"processFolder"`
+	DatabasePath                string        `yaml:"databasePath"`
+	ModelPath                   string        `yaml:"modelPath"`
+	Workers                     int           `yaml:"workers"`
+	TargetFPS                   float64       `yaml:"targetFPS"`
+	BypassHighFPS               *bool         `yaml:"bypassHighFPS"`
+	DeleteInputFileWhenFinished *bool         `yaml:"deleteInputFileWhenFinished"`
+	FfmpegOptions               FfmpegOptions `yaml:"ffmpegOptions"`
 }
 
 type FfmpegOptions struct {
@@ -71,6 +72,11 @@ func verifyConfig(config *Config) error {
 	if config.BypassHighFPS == nil {
 		defaultVal := true
 		config.BypassHighFPS = &defaultVal
+	}
+
+	if config.DeleteInputFileWhenFinished == nil {
+		defaultVal := false
+		config.DeleteInputFileWhenFinished = &defaultVal
 	}
 
 	return nil
