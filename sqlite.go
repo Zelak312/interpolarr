@@ -23,7 +23,7 @@ func NewSqlite(path string) Sqlite {
 	var err error
 	pool, err := sql.Open("sqlite", path)
 	if err != nil {
-		log.Panic(err)
+		log.Panic("Error when opening sqlite: ", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -54,17 +54,17 @@ func (s *Sqlite) RunMigrations() {
 
 	driver, err := sqlite3.WithInstance(s.pool, &sqlite3.Config{})
 	if err != nil {
-		log.Panic(err)
+		log.Panic("Error to get driver with instance: ", err)
 	}
 
 	m, err := migrate.NewWithInstance("iofs", d, "sqlite3", driver)
 	if err != nil {
-		log.Panic(err)
+		log.Panic("Error to make new instance of migration: ", err)
 	}
 
 	err = m.Up()
 	if err != nil && err.Error() != "no change" {
-		log.Panic(err)
+		log.Panic("Error doing migrations: ", err)
 	}
 }
 

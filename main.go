@@ -32,21 +32,25 @@ func main() {
 	flag.Parse()
 	config, err := GetConfig(*configPath)
 	if err != nil {
-		log.Panic(err)
+		log.Panic("Error get config: ", err)
 	}
 
 	log.WithFields(StructFields(config)).Debug("Parsed config")
+	if *config.DeleteInputFileWhenFinished {
+		log.Warn("DeleteInputFileWhenFinished is ON, it will delete the input file when finished!!!")
+	}
+
 	sqlite = NewSqlite(config.DatabasePath)
 	sqlite.RunMigrations()
 
 	videos, err := sqlite.GetVideos()
 	if err != nil {
-		log.Panic(err)
+		log.Panic("Error getting videos: ", err)
 	}
 
 	gQueue, err = NewQueue(videos)
 	if err != nil {
-		log.Panic(err)
+		log.Panic("Error creating the queue: ", err)
 	}
 
 	r := gin.Default()
@@ -62,7 +66,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
-		log.Info(sig, "signal received")
+		log.Info("Signal received: ", sig)
 		ctxCancel()
 
 		timer := time.NewTimer(time.Second * 10)
@@ -80,7 +84,7 @@ func main() {
 	go poolWorker.RunDispatcher()
 	err = r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 	if err != nil {
-		log.Panic(err)
+		log.Panic("Error running web server: ", err)
 	}
 }
 
@@ -97,7 +101,7 @@ func addVideoToQueue(c *gin.Context) {
 		c.String(400, err.Error())
 	}
 
-	log.WithFields(StructFields(video)).Debug()
+	log.WithFields(StructFields(video)).Debug("Add video to queue")
 	_, err := sqlite.InsertVideo(&video)
 	if err != nil {
 		c.String(400, err.Error())
@@ -114,7 +118,7 @@ func delVideoToQueue(c *gin.Context) {
 		c.String(400, err.Error())
 	}
 
-	log.WithField("id", id).Debug()
+	log.WithField("id", id).Debug("Del video by id")
 	err = sqlite.DeleteVideoByID(nil, id)
 	if err != nil {
 		c.String(400, err.Error())
