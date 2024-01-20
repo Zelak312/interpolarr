@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -64,9 +65,13 @@ func main() {
 		log.Info(sig, "signal received")
 		ctxCancel()
 
-		// TODO: add goroutine timer
-		// if it takes too long for waiting
-		// close the program by force
+		timer := time.NewTimer(time.Second * 10)
+		go func() {
+			<-timer.C
+			log.Info("Taking too long to shutdown, exiting forcefully")
+			log.Exit(1)
+		}()
+
 		waitGroup.Wait()
 		log.Exit(1)
 	}()

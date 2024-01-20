@@ -73,9 +73,6 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 				log.Debug(output)
 			}
 
-			// Put video at the back of the queue
-			// TODO: make a retry counter to drop the video
-			// if it has failed to many times
 			retries, err := sqlite.GetVideoRetries(&video)
 			if err != nil {
 				log.Panic(err)
@@ -212,10 +209,6 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 	if !ok && *p.config.DeleteInputFileWhenFinished {
 		err = os.Remove(video.Path)
 		if err != nil {
-			// TODO: should actually panic
-			// This shouldn't happen normally
-			// Acutally it should panic, it should log it thought
-			// But not count as an error, I want it to be 24/7
 			return "", false, err
 		}
 	} else if ok && *p.config.DeleteInputFileWhenFinished {
