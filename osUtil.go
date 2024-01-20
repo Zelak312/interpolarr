@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"os"
+	"path/filepath"
 )
 
 func CopyFile(src string, dest string) error {
@@ -24,4 +25,19 @@ func CopyFile(src string, dest string) error {
 	}
 
 	return destFile.Sync()
+}
+
+func IsSamePath(p1 string, p2 string) (bool, error) {
+	absPath1, err := filepath.Abs(p1)
+	if err != nil {
+		return false, err
+	}
+
+	absPath2, err := filepath.Abs(p2)
+	if err != nil {
+		return false, err
+	}
+
+	// Compare the absolute paths
+	return absPath1 == absPath2, nil
 }

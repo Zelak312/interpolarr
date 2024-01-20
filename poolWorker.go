@@ -208,7 +208,8 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 		return output, false, err
 	}
 
-	if *p.config.DeleteInputFileWhenFinished {
+	ok, err := IsSamePath(video.Path, video.OutputPath)
+	if !ok && *p.config.DeleteInputFileWhenFinished {
 		err = os.Remove(video.Path)
 		if err != nil {
 			// TODO: should actually panic
@@ -217,6 +218,12 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 			// But not count as an error, I want it to be 24/7
 			return "", false, err
 		}
+	} else if ok && *p.config.DeleteInputFileWhenFinished {
+		log.Debug("Detected same path with delete input file option, not deleting anything!")
+	}
+
+	if err != nil {
+		return "", false, err
 	}
 
 	err = os.RemoveAll(processFolderWorker)
