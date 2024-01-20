@@ -111,20 +111,20 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 		if !skip {
 			err := sqlite.MarkVideoAsDone(&video)
 			if err != nil {
-				log.Panic(err)
+				log.WithFields(StructFields(video)).Error("Failed to mark video as done: ", err)
 			}
 		} else {
 			log.Debug("Copying file to destination since it has been skipped")
 			if video.Path != video.OutputPath {
 				err := CopyFile(video.Path, video.OutputPath)
 				if err != nil {
-					log.Panic(err)
+					log.WithFields(StructFields(video)).Error("Failed to copy file to destination: ", err)
 				}
 			}
 
 			err := sqlite.DeleteVideoByID(nil, video.ID)
 			if err != nil {
-				log.Panic(err)
+				log.WithFields(StructFields(video)).Error("Failed to delete video: ", err)
 			}
 		}
 
