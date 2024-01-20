@@ -79,12 +79,19 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			}
 
 			if retries >= retryLimit {
-				sqlite.FailVideo(&video, output, processError.Error())
+				err = sqlite.FailVideo(&video, output, processError.Error())
+				if err != nil {
+					log.WithFields(StructFields(video)).Error("Failed to fail the video: ", err)
+				}
+
 				p.waitGroup.Done()
 				return
 			} else {
 				retries++
-				sqlite.UpdateVideoRetries(&video, retries)
+				err = sqlite.UpdateVideoRetries(&video, retries)
+				if err != nil {
+					log.WithFields(StructFields(video)).Error("Failed to update video retries: ", err)
+				}
 			}
 
 			p.queue.Enqueue(video)

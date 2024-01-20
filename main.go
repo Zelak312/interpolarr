@@ -78,7 +78,10 @@ func main() {
 
 	poolWorker := NewPoolWorker(ctx, &gQueue, &config, &waitGroup)
 	go poolWorker.RunDispatcher()
-	r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
+	err = r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 func ping(c *gin.Context) {
