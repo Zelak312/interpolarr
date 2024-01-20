@@ -75,7 +75,7 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 
 			retries, err := sqlite.GetVideoRetries(&video)
 			if err != nil {
-				log.Panic(err)
+				log.WithFields(StructFields(video)).Error("Failed to get retries: ", err)
 			}
 
 			if retries >= retryLimit {
@@ -86,15 +86,22 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 
 				p.waitGroup.Done()
 				return
-			} else {
-				retries++
+			} else if err == nil { // if err from getting retries
+				retries++ // don't do this, just silently fail the video
 				err = sqlite.UpdateVideoRetries(&video, retries)
 				if err != nil {
 					log.WithFields(StructFields(video)).Error("Failed to update video retries: ", err)
 				}
 			}
 
-			p.queue.Enqueue(video)
+			// only enqueue if there as been
+			// no errors to fail or update the video retries (also get)
+			if err == nil {
+				p.queue.Enqueue(video)
+			} else {
+				log.Debug("No re enqueing video du to an error above")
+			}
+
 			p.waitGroup.Done()
 			return
 		}
