@@ -23,14 +23,14 @@ func NewSqlite(path string) Sqlite {
 	var err error
 	pool, err := sql.Open("sqlite", path)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	if err := pool.PingContext(ctx); err != nil {
-		log.Fatalf("unable to connect to database: %v", err)
+		log.Panicf("unable to connect to database: %v", err)
 	}
 
 	return Sqlite{
@@ -44,27 +44,27 @@ var embedMigrations embed.FS
 func (s *Sqlite) RunMigrations() {
 	migrationFs, err := fs.Sub(embedMigrations, "migrations")
 	if err != nil {
-		log.Fatalf("failed to create fs.FS: %v", err)
+		log.Panicf("failed to create fs.FS: %v", err)
 	}
 
 	d, err := iofs.New(migrationFs, ".")
 	if err != nil {
-		log.Fatalf("failed to create new instance: %v", err)
+		log.Panicf("failed to create new instance: %v", err)
 	}
 
 	driver, err := sqlite3.WithInstance(s.pool, &sqlite3.Config{})
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	m, err := migrate.NewWithInstance("iofs", d, "sqlite3", driver)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	err = m.Up()
 	if err != nil && err.Error() != "no change" {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 }
 
