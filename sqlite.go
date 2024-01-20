@@ -69,7 +69,7 @@ func (s *Sqlite) RunMigrations() {
 }
 
 func (s *Sqlite) GetVideos() ([]Video, error) {
-	querySQL := `SELECT id, path, output_path, done FROM video WHERE done = false`
+	querySQL := `SELECT id, path, output_path FROM video WHERE done = false`
 	rows, err := s.pool.Query(querySQL)
 	if err != nil {
 		return []Video{}, err
