@@ -102,9 +102,9 @@ POST /queue takes this structure as a json body, id should not be sent on this e
 
 ```json
 {
-  "id": <video_id>,
-  "path": "<path_to_video>",
-  "outPath": "<output_path>"
+    "id": "<video_id>",
+    "path": "<path_to_video>",
+    "outPath": "<output_path>"
 }
 ```
 
