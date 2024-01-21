@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/kelseyhightower/envconfig"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,6 +29,7 @@ type FfmpegOptions struct {
 	HWAccelEncodeFlag string `yaml:"HWAccelEncodeFlag"`
 }
 
+// Verify config and set defaults
 func verifyConfig(config *Config) error {
 	if config == nil {
 		return errors.New("cannot verify config, config is nil")
@@ -91,6 +93,12 @@ func GetConfig(path string) (Config, error) {
 	config := Config{}
 
 	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		return Config{}, err
+	}
+
+	// Override with env variables if they are passed in
+	err = envconfig.Process("", &config)
 	if err != nil {
 		return Config{}, err
 	}
