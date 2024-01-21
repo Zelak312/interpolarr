@@ -2,6 +2,25 @@
 
 Interpolarr is an innovative tool designed to upscale videos to a higher frame rate using [RIFE NCNN Vulkan](https://github.com/TNTwise/rife-ncnn-vulkan).
 
+If you want to support my work<br>
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/zelak)
+
+## Table of Contents
+
+1. [Features](#features)
+2. [How it Works](#how-it-works)
+3. [Configuration](#configuration)
+    - [Env Variables](#env-variables-can-also-be-used)
+    - [Configuration Notes](#configuration-notes)
+4. [Configuration with Docker](#configuration-with-docker)
+    - [Unchangable Docker Configurations](#unchangable-docker-configurations)
+    - [Default Docker Configurations](#default-docker-configurations)
+5. [API Endpoints](#api-endpoints)
+    - [Video Queue Structure](#video-queue-structure)
+6. [Usage](#usage)
+7. [Contributing](#contributing)
+8. [License](#license)
+
 ## Features
 
 -   **High FPS Conversion**: Convert videos to a higher frame per second rate effectively.
@@ -9,10 +28,6 @@ Interpolarr is an innovative tool designed to upscale videos to a higher frame r
 -   **API Integration**: Utilize a straightforward API for queue management and video processing.
 -   **RIFE NCNN Vulkan Technology**: Leverage the latest advancements in frame interpolation technology.
 -   **24/7 Video Interpolation**: Aimed to not crash nor exit without explicitly asking it to, for less downtime as possible
-
-**If you want to support my work**
-
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/zelak)
 
 ## How it works
 
@@ -56,6 +71,19 @@ Interpolarr will use the env if specified over the config file, the envs variabl
 -   `targetFPS`: Which FPS should the videos be after interpoaltion
 -   `bypassHighFPS`: RIFE is used to 2x the video framerates, if the targetFPS is 60 fps and the video is over 30 fps, interpolarr will skip the video. If this option is false, interpolarr will reduce the fps of the video to 30 fps to reach 60 fps with rife
 -   `deleteInputFileWhenFinished`: When the interpolation of the video is done, interpolarr will delete the input file, **be careful with this if you don't want to lose the input (orignal) file, use at your own risk**
+
+## Configuration with docker
+
+I personally recommend the use of docker compose so I made a [compose.yml](compose.yml) file to show how to use the docker container<br>
+The environment variables from passed to docker will override a config yml file if mounted, the same ENV vars from the configuration section can be used and passed to docker. There [unchangable docker configuration](#unchangable-docker-configurations) and there are also [default docker configurations](#default-docker-configurations), these are important to read
+
+### Unchangable docker configurations
+
+Some of the configuration are unchangable in docker for simple reasons like, the rife binary being downloaded to a certain path and I don't want people to accidently change this configuration and have their container suddendly break. To view those unchangable configuration, they are in [.env.docker](.env.docker)
+
+### Default docker configurations
+
+Those are default docker configurations, they are overridable from a mount config.yml file and also the ENV variables. These are what most people would probably use when using docker, they are in [docker_default.yml](docker_default.yml)
 
 ## API Endpoints
 
