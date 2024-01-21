@@ -190,7 +190,11 @@ func (s *Sqlite) FailVideo(video *Video, output string, progErr string) error {
 	}
 
 	err = s.DeleteVideoByID(tx, video.ID)
-	return err
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (s *Sqlite) DeleteVideoByID(tx *sql.Tx, id int64) error {

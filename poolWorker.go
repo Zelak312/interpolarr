@@ -64,13 +64,14 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			if p.ctx.Err() == context.Canceled {
 				log.Debug("Ctx was canceled")
 				p.waitGroup.Done()
-				return
+				continue
 			}
 		}
 
 		if processError != nil {
+			log.Error("Error processing video: ", processError)
 			if output != "" {
-				log.Debug(output)
+				log.Debug("FFmpeg ouput: ", output)
 			}
 
 			retries, err := sqlite.GetVideoRetries(&video)
@@ -84,8 +85,9 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 					log.WithFields(StructFields(video)).Error("Failed to fail the video: ", err)
 				}
 
+				log.Info("Video failed, removing it from queue")
 				p.waitGroup.Done()
-				return
+				continue
 			} else if err == nil { // if err from getting retries
 				retries++ // don't do this, just silently fail the video
 				err = sqlite.UpdateVideoRetries(&video, retries)
@@ -98,12 +100,13 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			// no errors to fail or update the video retries (also get)
 			if err == nil {
 				p.queue.Enqueue(video)
+				log.Info("Requeue video (back of the queue and retrying)")
 			} else {
 				log.Debug("No re enqueing video du to an error above")
 			}
 
 			p.waitGroup.Done()
-			return
+			continue
 		}
 
 		// TODO: dependency injection for sqlite
@@ -213,7 +216,7 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 		}
 	}
 
-	log.Debug("Finished interpolating video")
+	log.Info("Finished interpolating video")
 	output, err = ConstructVideoToFPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath, targetFPS)
 	if err != nil {
 		return output, false, err
