@@ -1,0 +1,99 @@
+# Interpolarr
+
+Interpolarr is an innovative tool designed to upscale videos to a higher frame rate using [RIFE NCNN Vulkan](https://github.com/TNTwise/rife-ncnn-vulkan).
+
+## Features
+
+-   **High FPS Conversion**: Convert videos to a higher frame per second rate effectively.
+-   **Flexible Configuration**: Customize settings through a comprehensive YAML configuration file.
+-   **API Integration**: Utilize a straightforward API for queue management and video processing.
+-   **RIFE NCNN Vulkan Technology**: Leverage the latest advancements in frame interpolation technology.
+-   **24/7 Video Interpolation**: Aimed to not crash nor exit without explicitly asking it to, for less downtime as possible
+
+**If you want to support my work**
+
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/zelak)
+
+## How it works
+
+Interpolarr will process video in a queue format, first in first out. It will extract the audio, convert the video to half of the target fps and then the frames will be extracted. Those frames will be interpolated with rafe to 2x the frame count and then the video will be reconstructed with the audio and the new framerate.
+
+## Configuration
+
+Interpolarr is configured using a YAML file. Below is the structure of the configuration file with default values:
+
+```yaml
+---
+bindAddress: "127.0.0.1"
+port: 80
+rifeBinary: <path_to_rife_binary>
+processFolder: <path_to_process_folder>
+databasePath: <path_to_database>
+modelPath: "rife-v4.7"
+workers: 1
+targetFPS: 60.0
+bypassHighFPS: true
+deleteInputFileWhenFinished: false
+ffmpegOptions:
+    videoCodec: "libx264"
+    HWAccel: <hardware_acceleration_method>
+    HWAccelDecodeFlag: <decode_flag>
+    HWAccelEncodeFlag: <encode_flag>
+```
+
+### Env variables can also be used
+
+Interpolarr will use the env if specified over the config file, the envs variable are the name names but different format, example `bindAddress` would be `BIND_ADDRESS` for env, so you need to make sure you convert the name correctly. For ffmpeg options, a nested struct, it will be the same but with the struct prefix `FFMPEG_OPTIONS_VIDEO_CODEC`
+
+### Configuration notes
+
+-   `bindAddress`: if set to `127.0.0.1` will only listen locally
+-   `rifeBinary`: path to the rife binary
+-   `processFolder`: path to a temporary process folder, video frames and other things for interpolation will be temporary saved there
+-   `databasePath`: path to where the database will be stored example: `./interpolarr.db`
+-   `modelPath`: path to which rife model should be used. The default path of `rife-v4.7` means that the folder should be where interpolarr is executed, **it is a path**
+-   `workers`: how many videos can be interpolated concurrently, **using 1 is highly recommended unless you know your gpu or cpu can handle more**
+-   `targetFPS`: Which FPS should the videos be after interpoaltion
+-   `bypassHighFPS`: RIFE is used to 2x the video framerates, if the targetFPS is 60 fps and the video is over 30 fps, interpolarr will skip the video. If this option is false, interpolarr will reduce the fps of the video to 30 fps to reach 60 fps with rife
+-   `deleteInputFileWhenFinished`: When the interpolation of the video is done, interpolarr will delete the input file, **be careful with this if you don't want to lose the input (orignal) file, use at your own risk**
+
+## API Endpoints
+
+-   **GET `/ping`**: Returns a simple `{"message": "ping"}` response for health check.
+-   **GET `/queue`**: Lists the current video processing queue.
+-   **POST `/queue`**: Adds a video to the processing queue. Returns a 200 status on success.
+-   **DELETE `/queue/:id`**: Removes a video from the queue based on its ID.
+
+### Video Queue Structure
+
+GET /queue will return a list of this structure
+
+POST /queue takes this structure as a json body, id should not be sent on this endpoint, it will give an id to the video automatically
+
+```json
+{
+  "id": <video_id>,
+  "path": "<path_to_video>",
+  "outPath": "<output_path>"
+}
+```
+
+## Usage
+
+To use Interpolarr, follow these steps:
+
+1. **Set Up Configuration**: Create a YAML configuration file using the structure provided above. Customize the settings as per your requirements.
+2. **Start the Server**: Run Interpolarr with the command line argument `--config_path` to specify the path of your configuration file. If the config file is in the same path as where interpolarr is exectued, it is not needed if the file is named `config.yml`
+3. **API Interaction**: Use the API endpoints to manage the video processing queue.
+
+## Contributing
+
+We welcome contributions to Interpolarr! If you have suggestions or improvements, please open an issue in the repository before hand then submit a pull request if approved.
+
+## License
+
+Interpolarr is released under MIT. For more details, see the [LICENSE](LICENSE) file in the repository.
+
+---
+
+Enjoy enhanced video experiences with Interpolarr!
