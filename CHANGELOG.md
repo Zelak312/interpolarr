@@ -26,6 +26,7 @@ All notable changes to this project will be documented in this file.
 - Check if same path before deleting input file
 - Remove done from select when getting vids
 - Config not getting env correctly
+- Workflow for release
 
 ### Features
 
