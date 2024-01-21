@@ -1,0 +1,2 @@
+bindAddress: "0.0.0.0"
+databasePath: "./interpolarr.db"
