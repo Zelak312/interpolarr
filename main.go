@@ -27,7 +27,6 @@ var gQueue Queue
 var sqlite Sqlite
 
 func main() {
-	SetupLogger()
 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
 	flag.Parse()
 	config, err := GetConfig(*configPath)
@@ -35,6 +34,7 @@ func main() {
 		log.Panic("Error get config: ", err)
 	}
 
+	SetupLogger(config.LogPath)
 	log.WithFields(StructFields(config)).Debug("Parsed config")
 	if *config.DeleteInputFileWhenFinished {
 		log.Warn("DeleteInputFileWhenFinished is ON, it will delete the input file when finished!!!")

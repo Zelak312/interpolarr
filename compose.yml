@@ -10,3 +10,4 @@ services:
     - "./interpolarr.db:/interpolarr/interpolarr.db" # should be mounted to not lose queue on container removal
     - "./input_videos:/interpolarr/input_videos" # so the container can have access to the videos (folder is changable when adding a video <path>)
     - "./ouput_videos:/interpolarr/ouput_videos" # so you can have access to the output videos (folder is changable when adding a video <output_path>)
+    - "./logs:/interpolarr/logs" # so you can have logs on the machine

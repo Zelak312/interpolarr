@@ -44,6 +44,7 @@ port: 80
 rifeBinary: <path_to_rife_binary>
 processFolder: <path_to_process_folder>
 databasePath: <path_to_database>
+logPath: "./logs"
 modelPath: "rife-v4.7"
 workers: 1
 targetFPS: 60.0
@@ -66,6 +67,7 @@ Interpolarr will use the env if specified over the config file, the envs variabl
 -   `rifeBinary`: path to the rife binary
 -   `processFolder`: path to a temporary process folder, video frames and other things for interpolation will be temporary saved there
 -   `databasePath`: path to where the database will be stored example: `./interpolarr.db`
+-   `logPath`: path to where the log files will be stored, should be a folder
 -   `modelPath`: path to which rife model should be used. The default path of `rife-v4.7` means that the folder should be where interpolarr is executed, **it is a path**
 -   `workers`: how many videos can be interpolated concurrently, **using 1 is highly recommended unless you know your gpu or cpu can handle more**
 -   `targetFPS`: Which FPS should the videos be after interpoaltion

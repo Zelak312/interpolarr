@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"time"
@@ -26,10 +27,10 @@ func (h *cliHook) Fire(entry *log.Entry) error {
 	return err
 }
 
-func SetupLogger() {
+func SetupLogger(logPath string) {
 	// Rotating file logger setup
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   filepath.ToSlash("./logs/current_log.log"),
+		Filename:   filepath.ToSlash(path.Join(logPath, "/current_log.log")),
 		MaxSize:    5, // in MB
 		MaxBackups: 10,
 		MaxAge:     30,   // in days

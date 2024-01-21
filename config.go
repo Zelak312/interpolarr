@@ -14,6 +14,7 @@ type Config struct {
 	RifeBinary                  string        `yaml:"rifeBinary"`
 	ProcessFolder               string        `yaml:"processFolder"`
 	DatabasePath                string        `yaml:"databasePath"`
+	LogPath                     string        `yaml:"logPath"`
 	ModelPath                   string        `yaml:"modelPath"`
 	Workers                     int           `yaml:"workers"`
 	TargetFPS                   float64       `yaml:"targetFPS"`
@@ -79,6 +80,10 @@ func verifyConfig(config *Config) error {
 	if config.DeleteInputFileWhenFinished == nil {
 		defaultVal := false
 		config.DeleteInputFileWhenFinished = &defaultVal
+	}
+
+	if config.LogPath == "" {
+		config.LogPath = "./logs"
 	}
 
 	return nil
