@@ -98,7 +98,7 @@ func GetConfig(path string) (Config, error) {
 	}
 
 	// Override with env variables if they are passed in
-	err = envconfig.Process("", &config)
+	err = envconfig.ProcessWithOptions("", &config, envconfig.Options{SplitWords: true})
 	if err != nil {
 		return Config{}, err
 	}
