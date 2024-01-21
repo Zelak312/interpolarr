@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1-beta] - 2024-01-21
+
+### Bug Fixes
+
+- Not removing from memory queue
+- Broken docker container stuff
+
+### Miscellaneous Tasks
+
+- Remove go build on push master
+
 ## [1.0.0-beta] - 2024-01-21
 
 ### Bug Fixes
