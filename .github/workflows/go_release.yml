@@ -50,6 +50,9 @@ jobs:
                 goarch: [amd64]
 
         steps:
+            - name: Extract repository name
+              run: echo "REPO_NAME=$(basename $GITHUB_REPOSITORY)" >> $GITHUB_ENV
+
             - name: Download a build artifact
               uses: actions/download-artifact@v3
               with:
