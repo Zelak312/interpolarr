@@ -7,6 +7,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func appendVideoCodecArgs(args []string, config FfmpegOptions) []string {
@@ -42,6 +44,7 @@ func GetVideoFPS(ctx context.Context, inputPath string) (float64, error) {
 		"-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
 	output, err := cmd.Output()
 	if err != nil {
+		log.Error("GetVideoFPS error: ", output)
 		return 0, err
 	}
 

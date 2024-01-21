@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     libfdk-aac-dev \
     libmp3lame-dev \
     libopus-dev \
+    libpng-dev \
     wget \
     unzip \
     && rm -rf /var/lib/apt/lists/*
@@ -41,6 +42,7 @@ RUN ./configure \
     --enable-vaapi \
     --enable-libx264 \
     --enable-libx265 \
+    --enable-encoders \
     --extra-cflags=-I/usr/local/cuda/include \
     --extra-ldflags=-L/usr/local/cuda/lib64 \
     && make -j$(nproc) \
@@ -79,6 +81,9 @@ RUN apt-get update && apt-get install -y \
     libfdk-aac-dev \
     libmp3lame-dev \
     libopus-dev \
+    libpng-dev \
+    libvulkan1 \
+    libgomp1 \
     wget \
     unzip \
     gosu \

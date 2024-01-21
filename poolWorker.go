@@ -71,7 +71,7 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 		if processError != nil {
 			log.Error("Error processing video: ", processError)
 			if output != "" {
-				log.Debug("FFmpeg ouput: ", output)
+				log.Debug("Process ouput: ", output)
 			}
 
 			retries, err := sqlite.GetVideoRetries(&video)
@@ -156,12 +156,12 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 	log.Debugf("target FPS: %g", targetFPS)
 
 	if fps >= targetFPS {
-		log.Debug(`Video is already higher or equal to target FPS, skipping`)
+		log.Info(`Video is already higher or equal to target FPS, skipping`)
 		return "", true, nil
 	}
 
 	if *p.config.BypassHighFPS && fps > targetFPS/2 {
-		log.Debug("Bypassing video because of high FPS, skipping")
+		log.Info("Bypassing video because of high FPS, skipping")
 		return "", true, nil
 	}
 
