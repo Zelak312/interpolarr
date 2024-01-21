@@ -51,6 +51,7 @@ func (q *Queue) RemoveByID(id int64) (Video, bool) {
 		return Video{}, false
 	}
 
+	q.videos = append(q.videos[:index], q.videos[index+1:]...)
 	return video, true
 }
 
