@@ -30,5 +30,6 @@ if [ -n "$PUID" ] && [ -n "$PGID" ]; then
     env | gosu $PUID:$PGID ./interpolarr
 else
     # Start the app as root
+    chown -R $(id -u):$(id -g) /interpolarr
     env | ./interpolarr
 fi

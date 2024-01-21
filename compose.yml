@@ -1,13 +1,13 @@
 version: '3.8'
 services:
   interpolarr:
-  container: ghcr.io/zelak312/interpolarr:latest
-  restart: unless-stopped
-  environment:
-    MODEL_PATH: "rife-v4.7" # example of changing configuration in docker
-  volumes:
-    - "./process:/interpolarr/process" # optional, map process folder
-    - "./interpolarr.db:/interpolarr/interpolarr.db" # should be mounted to not lose queue on container removal
-    - "./input_videos:/interpolarr/input_videos" # so the container can have access to the videos (folder is changable when adding a video <path>)
-    - "./ouput_videos:/interpolarr/ouput_videos" # so you can have access to the output videos (folder is changable when adding a video <output_path>)
-    - "./logs:/interpolarr/logs" # so you can have logs on the machine
+    image: ghcr.io/zelak312/interpolarr:latest
+    restart: unless-stopped
+    environment:
+      MODEL_PATH: "rife-v4.7" # example of changing configuration in docker
+    volumes:
+      - "./process:/interpolarr/process" # optional, map process folder
+      - "./interpolarr.db:/interpolarr/interpolarr.db" # should be mounted to not lose queue on container removal
+      - "./input_videos:/interpolarr/input_videos" # so the container can have access to the videos (folder is changable when adding a video <path>)
+      - "./ouput_videos:/interpolarr/ouput_videos" # so you can have access to the output videos (folder is changable when adding a video <output_path>)
+      - "./logs:/interpolarr/logs" # so you can have logs on the machine

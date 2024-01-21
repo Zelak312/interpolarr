@@ -68,7 +68,17 @@ RUN go mod download && go build -o interpolarr .
 
 FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04
 
+# Install FFMPEG runtime dependencies
 RUN apt-get update && apt-get install -y \
+    libva-dev \
+    libvdpau1 \
+    libdrm2 \
+    libx264-dev \
+    libx265-dev \
+    libvpx-dev \
+    libfdk-aac-dev \
+    libmp3lame-dev \
+    libopus-dev \
     wget \
     unzip \
     gosu \
