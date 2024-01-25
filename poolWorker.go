@@ -64,7 +64,7 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			if p.ctx.Err() == context.Canceled {
 				log.Debug("Ctx was canceled")
 				p.waitGroup.Done()
-				continue
+				return
 			}
 		}
 
