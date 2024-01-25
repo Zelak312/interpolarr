@@ -1,9 +1,15 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func CopyFile(src string, dest string) error {
@@ -40,4 +46,30 @@ func IsSamePath(p1 string, p2 string) (bool, error) {
 
 	// Compare the absolute paths
 	return absPath1 == absPath2, nil
+}
+
+type Command struct {
+	cmd    *exec.Cmd
+	name   string
+	output bytes.Buffer
+}
+
+func (c *Command) Write(p []byte) (n int, err error) {
+	log.WithField("cmd_name", c.name).Debug(string(p))
+	return c.output.Write(p)
+}
+
+func (c *Command) CombinedOutput() (string, error) {
+	err := c.cmd.Run()
+	return c.output.String(), err
+}
+
+func CommandContextLogger(ctx context.Context, name string, arg ...string) *Command {
+	cmd := exec.CommandContext(ctx, name, arg...)
+
+	command := Command{cmd: cmd, name: name + strings.Join(arg, " ")}
+	cmd.Stdout = &command
+	cmd.Stderr = &command
+
+	return &command
 }

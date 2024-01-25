@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -40,9 +39,9 @@ func appendHWAccelEncodeArgs(args []string, config FfmpegOptions) []string {
 }
 
 func GetVideoFPS(ctx context.Context, inputPath string) (float64, error) {
-	cmd := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0",
+	cmd := CommandContextLogger(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0",
 		"-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Error("GetVideoFPS error: ", output)
 		return 0, err
@@ -63,13 +62,13 @@ func ConvertVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath stri
 	args = append(args, "-i", inputPath, "-filter:v", fmt.Sprintf("fps=%g", fps))
 	args = appendVideoCodecArgs(args, config)
 	args = append(args, outputPath)
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd := CommandContextLogger(ctx, "ffmpeg", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
 func ExtractAudio(ctx context.Context, inputPath string, outputPath string) (string, error) {
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", inputPath, "-vn", "-acodec", "copy", outputPath)
+	cmd := CommandContextLogger(ctx, "ffmpeg", "-i", inputPath, "-vn", "-acodec", "copy", outputPath)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -82,7 +81,7 @@ func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, 
 	}
 
 	args = append(args, "-i", inputPath, "-fps_mode", "passthrough", outputPathTemplate)
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd := CommandContextLogger(ctx, "ffmpeg", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -92,7 +91,7 @@ func ConstructVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath st
 	args := []string{"-framerate", fmt.Sprintf("%g", fps), "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy"}
 	args = appendHWAccelEncodeArgs(args, config)
 	args = append(args, "-crf", "20", "-pix_fmt", "yuv420p", outputPath)
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd := CommandContextLogger(ctx, "ffmpeg", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
