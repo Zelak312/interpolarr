@@ -106,5 +106,6 @@ RUN wget https://api.github.com/repos/TNTwise/rife-ncnn-vulkan/releases/latest \
     && rm ubuntu.zip \
     && chmod +x ./entrypoint.sh
 
+ENV NVIDIA_DRIVER_CAPABILITIES=all
 EXPOSE 8080
 ENTRYPOINT ["./entrypoint.sh"]
