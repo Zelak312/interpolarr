@@ -80,54 +80,82 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			}
 
 			if retries >= retryLimit {
+				log.Info("Video failed, removing it from queue")
 				err = sqlite.FailVideo(&video, output, processError.Error())
 				if err != nil {
 					log.WithFields(StructFields(video)).Error("Failed to fail the video: ", err)
+					p.waitGroup.Done()
+					continue
 				}
 
-				log.Info("Video failed, removing it from queue")
 				p.waitGroup.Done()
 				continue
-			} else if err == nil { // if err from getting retries
-				retries++ // don't do this, just silently fail the video
+			} else if err == nil {
+				retries++
 				err = sqlite.UpdateVideoRetries(&video, retries)
 				if err != nil {
 					log.WithFields(StructFields(video)).Error("Failed to update video retries: ", err)
+					p.waitGroup.Done()
+					continue
 				}
 			}
 
-			// only enqueue if there as been
-			// no errors to fail or update the video retries (also get)
-			if err == nil {
-				p.queue.Enqueue(video)
-				log.Info("Requeue video (back of the queue and retrying)")
-			} else {
-				log.Debug("No re enqueing video du to an error above")
-			}
-
+			p.queue.Enqueue(video)
+			log.Info("Requeue video (back of the queue and retrying)")
 			p.waitGroup.Done()
 			continue
 		}
 
 		// TODO: dependency injection for sqlite
 		// I don't like the idea of having it global
-		if !skip {
-			err := sqlite.MarkVideoAsDone(&video)
+		if skip {
+			log.Info("Copying file to destination since it has been skipped")
+			ok, err := IsSamePath(video.Path, video.OutputPath)
 			if err != nil {
-				log.WithFields(StructFields(video)).Error("Failed to mark video as done: ", err)
+				log.WithFields(StructFields(video)).Error("Failed to match same path: ", err)
+				p.waitGroup.Done()
+				continue
 			}
-		} else {
-			log.Debug("Copying file to destination since it has been skipped")
-			if video.Path != video.OutputPath {
+
+			if !ok {
 				err := CopyFile(video.Path, video.OutputPath)
 				if err != nil {
 					log.WithFields(StructFields(video)).Error("Failed to copy file to destination: ", err)
+					p.waitGroup.Done()
+					continue
 				}
+
+				log.WithFields(StructFields(video)).Debug("Video file copied sucessfully")
+			} else {
+				log.WithFields(StructFields(video)).Warn("Can't copy file with same path as output path")
+				p.waitGroup.Done()
+				continue
+			}
+		}
+
+		err := sqlite.MarkVideoAsDone(&video)
+		if err != nil {
+			log.WithFields(StructFields(video)).Error("Failed to mark video as done: ", err)
+			p.waitGroup.Done()
+			continue
+		}
+
+		if *p.config.DeleteInputFileWhenFinished {
+			log.WithFields(StructFields(video)).Info("Deleting input file")
+			ok, err := IsSamePath(video.Path, video.OutputPath)
+			if err != nil {
+				log.WithFields(StructFields(video)).Error("Same path detected: ", err)
+				p.waitGroup.Done()
+				continue
 			}
 
-			err := sqlite.DeleteVideoByID(nil, video.ID)
-			if err != nil {
-				log.WithFields(StructFields(video)).Error("Failed to delete video: ", err)
+			if !ok {
+				err = os.Remove(video.Path)
+				if err != nil {
+					log.WithFields(StructFields(video)).Error("Failed to delete vidoe: ", err)
+				}
+			} else {
+				log.WithFields(StructFields(video)).Warn("Detected same path with delete input file option, not deleting anything!")
 			}
 		}
 
@@ -220,20 +248,6 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 	output, err = ConstructVideoToFPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath, targetFPS)
 	if err != nil {
 		return output, false, err
-	}
-
-	ok, err := IsSamePath(video.Path, video.OutputPath)
-	if !ok && *p.config.DeleteInputFileWhenFinished {
-		err = os.Remove(video.Path)
-		if err != nil {
-			return "", false, err
-		}
-	} else if ok && *p.config.DeleteInputFileWhenFinished {
-		log.Debug("Detected same path with delete input file option, not deleting anything!")
-	}
-
-	if err != nil {
-		return "", false, err
 	}
 
 	err = os.RemoveAll(processFolderWorker)
