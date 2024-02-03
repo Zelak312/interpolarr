@@ -159,6 +159,7 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			}
 		}
 
+		log.WithFields(StructFields(video)).Info("Finished processing video")
 		p.waitGroup.Done()
 	}
 }
