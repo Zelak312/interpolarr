@@ -43,7 +43,7 @@ func GetVideoFPS(ctx context.Context, inputPath string) (float64, error) {
 		"-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Error("GetVideoFPS error: ", output)
+		log.WithField("inputPath", inputPath).Error("GetVideoFPS error: ", output)
 		return 0, err
 	}
 

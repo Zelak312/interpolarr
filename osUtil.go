@@ -55,7 +55,7 @@ type Command struct {
 }
 
 func (c *Command) Write(p []byte) (n int, err error) {
-	log.WithField("cmd_name", c.name).Debug(string(p))
+	log.WithField("cmdName", c.name).Debug(string(p))
 	return c.output.Write(p)
 }
 
@@ -67,7 +67,7 @@ func (c *Command) CombinedOutput() (string, error) {
 func CommandContextLogger(ctx context.Context, name string, arg ...string) *Command {
 	cmd := exec.CommandContext(ctx, name, arg...)
 
-	command := Command{cmd: cmd, name: name + strings.Join(arg, " ")}
+	command := Command{cmd: cmd, name: name + " " + strings.Join(arg, " ")}
 	cmd.Stdout = &command
 	cmd.Stderr = &command
 

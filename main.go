@@ -31,7 +31,7 @@ func main() {
 	flag.Parse()
 	config, err := GetConfig(*configPath)
 	if err != nil {
-		log.Panic("Error get config: ", err)
+		log.WithField("configPath", configPath).Panic("Error get config: ", err)
 	}
 
 	SetupLogger(config.LogPath)
@@ -66,7 +66,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
-		log.Info("Signal received: ", sig)
+		log.Info("Signal received: ", sig, " shuting down")
 		ctxCancel()
 
 		timer := time.NewTimer(time.Second * 10)
@@ -101,13 +101,15 @@ func addVideoToQueue(c *gin.Context) {
 		c.String(400, err.Error())
 	}
 
-	log.WithFields(StructFields(video)).Debug("Add video to queue")
+	log.WithFields(StructFields(video)).Debug("Adding video to queue")
 	_, err := sqlite.InsertVideo(&video)
 	if err != nil {
+		log.WithFields(StructFields(video)).Error("Error inserting the video: ", err)
 		c.String(400, err.Error())
 	}
 
 	gQueue.Enqueue(video)
+	log.WithFields(StructFields(video)).Info("Sucessfully video to queue")
 	c.String(200, "Success")
 }
 
@@ -118,7 +120,7 @@ func delVideoToQueue(c *gin.Context) {
 		c.String(400, err.Error())
 	}
 
-	log.WithField("id", id).Debug("Del video by id")
+	log.WithField("id", id).Debug("Deleting video by id")
 	err = sqlite.DeleteVideoByID(nil, id)
 	if err != nil {
 		c.String(400, err.Error())
@@ -126,12 +128,15 @@ func delVideoToQueue(c *gin.Context) {
 
 	video, ok := gQueue.RemoveByID(id)
 	if !ok {
+		log.WithField("id", id).Error("Failed to delete the video by id: ", err)
 		c.String(400, "Didn't find video")
 	}
 
+	log.WithField("id", id).Info("Sucessfully delete video by id")
 	c.JSON(200, video)
 }
 
 func listVideoQueue(c *gin.Context) {
+	log.Debug("Getting video queue")
 	c.JSON(200, gQueue.GetVideos())
 }

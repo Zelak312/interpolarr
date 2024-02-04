@@ -60,16 +60,20 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 		output, skip, processError := p.processVideo(id, video)
 		// check if context was canceled
 		if p.ctx.Err() != nil {
-			log.Debugf("Ctx error is: %s", p.ctx.Err())
+			log.Debug("Ctx error is: ", p.ctx.Err())
 			if p.ctx.Err() == context.Canceled {
 				log.Debug("Ctx was canceled")
 				p.waitGroup.Done()
 				return
 			}
+
+			log.Error("Unknown ctx error")
+			p.waitGroup.Done()
+			return
 		}
 
 		if processError != nil {
-			log.Error("Error processing video: ", processError)
+			log.WithFields(StructFields(video)).Error("Error processing video: ", processError)
 			if output != "" {
 				log.Debug("Process ouput: ", output)
 			}
@@ -80,7 +84,7 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			}
 
 			if retries >= retryLimit {
-				log.Info("Video failed, removing it from queue")
+				log.WithFields(StructFields(video)).Info("Video failed, removing it from queue")
 				err = sqlite.FailVideo(&video, output, processError.Error())
 				if err != nil {
 					log.WithFields(StructFields(video)).Error("Failed to fail the video: ", err)
@@ -101,18 +105,18 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			}
 
 			p.queue.Enqueue(video)
-			log.Info("Requeue video (back of the queue and retrying)")
+			log.WithFields(StructFields(video)).Info("Requeue video (back of the queue and retrying)")
 			p.waitGroup.Done()
 			continue
 		}
 
-		// TODO: dependency injection for sqlite
-		// I don't like the idea of having it global
 		if skip {
-			log.Info("Copying file to destination since it has been skipped")
+			log.WithField("srcPath", video.Path).
+				WithField("destPath", video.OutputPath).
+				Debug("Copying file to destination since it has been skipped")
 			ok, err := IsSamePath(video.Path, video.OutputPath)
 			if err != nil {
-				log.WithFields(StructFields(video)).Error("Failed to match same path: ", err)
+				log.Error("Failed to match same path: ", err)
 				p.waitGroup.Done()
 				continue
 			}
@@ -120,14 +124,14 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			if !ok {
 				err := CopyFile(video.Path, video.OutputPath)
 				if err != nil {
-					log.WithFields(StructFields(video)).Error("Failed to copy file to destination: ", err)
+					log.Error("Failed to copy file to destination: ", err)
 					p.waitGroup.Done()
 					continue
 				}
 
-				log.WithFields(StructFields(video)).Debug("Video file copied sucessfully")
+				log.Info("Video file copied sucessfully")
 			} else {
-				log.WithFields(StructFields(video)).Warn("Can't copy file with same path as output path")
+				log.Warn("Can't copy file with same path as output path")
 				p.waitGroup.Done()
 				continue
 			}
@@ -135,16 +139,16 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 
 		err := sqlite.MarkVideoAsDone(&video)
 		if err != nil {
-			log.WithFields(StructFields(video)).Error("Failed to mark video as done: ", err)
+			log.Error("Failed to mark video as done: ", err)
 			p.waitGroup.Done()
 			continue
 		}
 
 		if *p.config.DeleteInputFileWhenFinished {
-			log.WithFields(StructFields(video)).Info("Deleting input file")
+			log.Debug("Deleting input file")
 			ok, err := IsSamePath(video.Path, video.OutputPath)
 			if err != nil {
-				log.WithFields(StructFields(video)).Error("Same path detected: ", err)
+				log.Error("Error while looking up same path: ", err)
 				p.waitGroup.Done()
 				continue
 			}
@@ -154,12 +158,14 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 				if err != nil {
 					log.WithFields(StructFields(video)).Error("Failed to delete vidoe: ", err)
 				}
+
+				log.WithField("file", video.Path).Info("Deleted input file")
 			} else {
 				log.WithFields(StructFields(video)).Warn("Detected same path with delete input file option, not deleting anything!")
 			}
 		}
 
-		log.WithFields(StructFields(video)).Info("Finished processing video")
+		log.Info("Finished processing video")
 		p.waitGroup.Done()
 	}
 }
@@ -181,8 +187,8 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 	}
 
 	targetFPS := p.config.TargetFPS
-	log.Debugf("fps: %g", fps)
-	log.Debugf("target FPS: %g", targetFPS)
+	log.Info("fps: ", fps)
+	log.Info("target FPS: ", targetFPS)
 
 	if fps >= targetFPS {
 		log.Info(`Video is already higher or equal to target FPS, skipping`)
@@ -194,43 +200,47 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 		return "", true, nil
 	}
 
+	log.Debug("Creating worker folder if doesn't exist")
 	err = os.MkdirAll(processFolderWorker, os.ModePerm)
 	if err != nil {
 		return "", false, err
 	}
 
+	log.Infof("Converting video to %g fps", targetFPS/2)
 	fpsConversionOutput := path.Join(processFolderWorker, "video.mp4")
 	output, err := ConvertVideoToFPS(p.ctx, p.config.FfmpegOptions, video.Path, fpsConversionOutput, targetFPS/2)
 	if err != nil {
 		return output, false, err
 	}
 
-	log.Debugf("Finished converting to %g fps", targetFPS/2)
+	log.Info("Extracting audio from the video")
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
 	output, err = ExtractAudio(p.ctx, fpsConversionOutput, audioPath)
 	if err != nil {
 		return output, false, err
 	}
 
-	log.Debug("Finished extracting audio")
+	log.Debug("Creating frames folder")
 	framesFolder := path.Join(processFolderWorker, "frames")
 	err = os.Mkdir(framesFolder, os.ModePerm)
 	if err != nil {
 		return "", false, err
 	}
 
+	log.Info("Extracting video frames")
 	output, err = ExtractFrames(p.ctx, p.config.FfmpegOptions, fpsConversionOutput, framesFolder)
 	if err != nil {
 		return output, false, err
 	}
 
-	log.Debug("Finished extracting frames")
+	log.Debug("Creating interpolation frames folder")
 	interpolatedFolder := path.Join(processFolderWorker, "interpolated_frames")
 	err = os.Mkdir(interpolatedFolder, os.ModePerm)
 	if err != nil {
 		return "", false, err
 	}
 
+	log.Info("Interpolating video")
 	output, err = InterpolateVideo(p.ctx, p.config.RifeBinary, framesFolder, interpolatedFolder, p.config.ModelPath)
 	if err != nil {
 		return output, false, err
@@ -238,6 +248,8 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 
 	// make sure the folder exist
 	baseOutputPath := path.Dir(video.OutputPath)
+	log.WithField("baseOutputPath", baseOutputPath).
+		Debug("Creating output folder if it doesn't exist")
 	if _, err := os.Stat(baseOutputPath); err != nil {
 		err := os.MkdirAll(baseOutputPath, os.ModePerm)
 		if err != nil {
@@ -245,12 +257,13 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 		}
 	}
 
-	log.Info("Finished interpolating video")
+	log.Infof("Reconstructing video with audio and interpolated frames to %g fps", targetFPS)
 	output, err = ConstructVideoToFPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath, targetFPS)
 	if err != nil {
 		return output, false, err
 	}
 
+	log.Debug("Removing worker folder")
 	err = os.RemoveAll(processFolderWorker)
 	if err != nil {
 		return "", false, err
