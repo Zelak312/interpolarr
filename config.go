@@ -21,6 +21,7 @@ type Config struct {
 	BypassHighFPS               *bool         `yaml:"bypassHighFPS"`
 	DeleteInputFileWhenFinished *bool         `yaml:"deleteInputFileWhenFinished"`
 	FfmpegOptions               FfmpegOptions `yaml:"ffmpegOptions"`
+	DeleteOutputIfAlreadyExist  *bool         `yaml:"deleteOutputIfAlreadyExist"`
 }
 
 type FfmpegOptions struct {
@@ -80,6 +81,11 @@ func verifyConfig(config *Config) error {
 	if config.DeleteInputFileWhenFinished == nil {
 		defaultVal := false
 		config.DeleteInputFileWhenFinished = &defaultVal
+	}
+
+	if config.DeleteOutputIfAlreadyExist == nil {
+		defaultVal := false
+		config.DeleteOutputIfAlreadyExist = &defaultVal
 	}
 
 	if config.LogPath == "" {

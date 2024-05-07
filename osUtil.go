@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -46,6 +47,17 @@ func IsSamePath(p1 string, p2 string) (bool, error) {
 
 	// Compare the absolute paths
 	return absPath1 == absPath2, nil
+}
+
+func FileExist(f string) (bool, error) {
+	var err error
+	if _, err = os.Stat(f); errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, nil
+	}
+
+	return true, err
 }
 
 type Command struct {

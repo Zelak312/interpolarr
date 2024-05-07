@@ -57,7 +57,7 @@ var retryLimit int = 5
 func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 	for video := range workChannel {
 		p.waitGroup.Add(1)
-		output, skip, processError := p.processVideo(id, video)
+		output, processVideoOutput := p.processVideo(id, video)
 		// check if context was canceled
 		if p.ctx.Err() != nil {
 			log.Debug("Ctx error is: ", p.ctx.Err())
@@ -72,8 +72,8 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			return
 		}
 
-		if processError != nil {
-			log.WithFields(StructFields(video)).Error("Error processing video: ", processError)
+		if processVideoOutput.err != nil {
+			log.WithFields(StructFields(video)).Error("Error processing video: ", processVideoOutput.err)
 			if output != "" {
 				log.Debug("Process ouput: ", output)
 			}
@@ -85,7 +85,7 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 
 			if retries >= retryLimit {
 				log.WithFields(StructFields(video)).Info("Video failed, removing it from queue")
-				err = sqlite.FailVideo(&video, output, processError.Error())
+				err = sqlite.FailVideo(&video, output, processVideoOutput.err.Error())
 				if err != nil {
 					log.WithFields(StructFields(video)).Error("Failed to fail the video: ", err)
 					p.waitGroup.Done()
@@ -110,7 +110,7 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 			continue
 		}
 
-		if skip {
+		if processVideoOutput.skip {
 			log.WithField("srcPath", video.Path).
 				WithField("destPath", video.OutputPath).
 				Debug("Copying file to destination since it has been skipped")
@@ -170,20 +170,43 @@ func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 	}
 }
 
-func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
+// TODO: add process output in this
+type ProcessVideoOutput struct {
+	skip                   bool
+	outputFileAlreadyExist bool
+	err                    error
+}
+
+func (p *PoolWorker) processVideo(id int, video Video) (string, ProcessVideoOutput) {
 	log.WithFields(StructFields(video)).Info("Processing video")
+
+	outputExist, err := FileExist(video.OutputPath)
+	if err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
+
+	if outputExist && *p.config.DeleteOutputIfAlreadyExist {
+		log.Debug("Output already exist, deleting file")
+		err = os.Remove(video.OutputPath)
+		if err != nil {
+			return "", ProcessVideoOutput{err: err}
+		}
+	} else if outputExist {
+		log.Debug("Output already exist, skipping")
+		return "", ProcessVideoOutput{outputFileAlreadyExist: true}
+	}
 
 	processFolderWorker := path.Join(p.config.ProcessFolder, fmt.Sprintf("worker_%d", id))
 	if _, err := os.Stat(processFolderWorker); err == nil {
 		err := os.RemoveAll(processFolderWorker)
 		if err != nil {
-			return "", false, err
+			return "", ProcessVideoOutput{err: err}
 		}
 	}
 
 	fps, err := GetVideoFPS(p.ctx, video.Path)
 	if err != nil {
-		return "", false, err
+		return "", ProcessVideoOutput{err: err}
 	}
 
 	targetFPS := p.config.TargetFPS
@@ -192,58 +215,58 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 
 	if fps >= targetFPS {
 		log.Info(`Video is already higher or equal to target FPS, skipping`)
-		return "", true, nil
+		return "", ProcessVideoOutput{skip: true}
 	}
 
 	if *p.config.BypassHighFPS && fps > targetFPS/2 {
 		log.Info("Bypassing video because of high FPS, skipping")
-		return "", true, nil
+		return "", ProcessVideoOutput{skip: true}
 	}
 
 	log.Debug("Creating worker folder if doesn't exist")
 	err = os.MkdirAll(processFolderWorker, os.ModePerm)
 	if err != nil {
-		return "", false, err
+		return "", ProcessVideoOutput{err: err}
 	}
 
 	log.Infof("Converting video to %g fps", targetFPS/2)
 	fpsConversionOutput := path.Join(processFolderWorker, "video.mp4")
 	output, err := ConvertVideoToFPS(p.ctx, p.config.FfmpegOptions, video.Path, fpsConversionOutput, targetFPS/2)
 	if err != nil {
-		return output, false, err
+		return output, ProcessVideoOutput{err: err}
 	}
 
 	log.Info("Extracting audio from the video")
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
 	output, err = ExtractAudio(p.ctx, fpsConversionOutput, audioPath)
 	if err != nil {
-		return output, false, err
+		return output, ProcessVideoOutput{err: err}
 	}
 
 	log.Debug("Creating frames folder")
 	framesFolder := path.Join(processFolderWorker, "frames")
 	err = os.Mkdir(framesFolder, os.ModePerm)
 	if err != nil {
-		return "", false, err
+		return "", ProcessVideoOutput{err: err}
 	}
 
 	log.Info("Extracting video frames")
 	output, err = ExtractFrames(p.ctx, p.config.FfmpegOptions, fpsConversionOutput, framesFolder)
 	if err != nil {
-		return output, false, err
+		return output, ProcessVideoOutput{err: err}
 	}
 
 	log.Debug("Creating interpolation frames folder")
 	interpolatedFolder := path.Join(processFolderWorker, "interpolated_frames")
 	err = os.Mkdir(interpolatedFolder, os.ModePerm)
 	if err != nil {
-		return "", false, err
+		return "", ProcessVideoOutput{err: err}
 	}
 
 	log.Info("Interpolating video")
 	output, err = InterpolateVideo(p.ctx, p.config.RifeBinary, framesFolder, interpolatedFolder, p.config.ModelPath)
 	if err != nil {
-		return output, false, err
+		return output, ProcessVideoOutput{err: err}
 	}
 
 	// make sure the folder exist
@@ -253,21 +276,21 @@ func (p *PoolWorker) processVideo(id int, video Video) (string, bool, error) {
 	if _, err := os.Stat(baseOutputPath); err != nil {
 		err := os.MkdirAll(baseOutputPath, os.ModePerm)
 		if err != nil {
-			return "", false, err
+			return "", ProcessVideoOutput{err: err}
 		}
 	}
 
 	log.Infof("Reconstructing video with audio and interpolated frames to %g fps", targetFPS)
 	output, err = ConstructVideoToFPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath, targetFPS)
 	if err != nil {
-		return output, false, err
+		return output, ProcessVideoOutput{err: err}
 	}
 
 	log.Debug("Removing worker folder")
 	err = os.RemoveAll(processFolderWorker)
 	if err != nil {
-		return "", false, err
+		return "", ProcessVideoOutput{err: err}
 	}
 
-	return "", false, nil
+	return "", ProcessVideoOutput{}
 }

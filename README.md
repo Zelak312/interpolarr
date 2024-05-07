@@ -50,6 +50,7 @@ workers: 1
 targetFPS: 60.0
 bypassHighFPS: true
 deleteInputFileWhenFinished: false
+deleteOutputIfAlreadyExist: false
 ffmpegOptions:
     videoCodec: "libx264"
     HWAccel: <hardware_acceleration_method>
@@ -73,6 +74,7 @@ Interpolarr will use the env if specified over the config file, the envs variabl
 -   `targetFPS`: Which FPS should the videos be after interpoaltion
 -   `bypassHighFPS`: RIFE is used to 2x the video framerates, if the targetFPS is 60 fps and the video is over 30 fps, interpolarr will skip the video. If this option is false, interpolarr will reduce the fps of the video to 30 fps to reach 60 fps with rife
 -   `deleteInputFileWhenFinished`: When the interpolation of the video is done, interpolarr will delete the input file, **be careful with this if you don't want to lose the input (orignal) file, use at your own risk**
+-   `deleteOutputIfAlreadyExist`: If the output file already exist (output being the converted file), it will delete that file if true and continue the process for the conversion. If it is false, it will skip the this file
 
 ## Configuration with docker
 
