@@ -102,6 +102,7 @@ func addVideoToQueue(c *gin.Context) {
 	}
 
 	log.WithFields(StructFields(video)).Debug("Adding video to queue")
+	// TODO: should check the paths carefully to make sure they are valid
 	_, err := sqlite.InsertVideo(&video)
 	if err != nil {
 		log.WithFields(StructFields(video)).Error("Error inserting the video: ", err)

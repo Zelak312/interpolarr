@@ -54,6 +54,9 @@ var retryLimit int = 5
 
 // Make sure to call waitGroup.Done() at when no errors
 // Otherwise the cancel process will get stuck waiting
+// TODO: split this function, it's getting pretty big
+// TODO: recheck the structure and content off this function
+// it seems like this could be way better
 func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
 	for video := range workChannel {
 		p.waitGroup.Add(1)
@@ -177,14 +180,20 @@ type ProcessVideoOutput struct {
 	err                    error
 }
 
+// TODO: split this function, it's getting quite big
 func (p *PoolWorker) processVideo(id int, video Video) (string, ProcessVideoOutput) {
 	log.WithFields(StructFields(video)).Info("Processing video")
+
+	// TODO: recheck video.Path is valid
+	// need to make sure the video actully exist!!
 
 	outputExist, err := FileExist(video.OutputPath)
 	if err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}
 
+	// TODO: I think deleting the output should be done
+	// when the output is going to be created
 	if outputExist && *p.config.DeleteOutputIfAlreadyExist {
 		log.Debug("Output already exist, deleting file")
 		err = os.Remove(video.OutputPath)
