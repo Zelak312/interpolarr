@@ -81,7 +81,7 @@ func main() {
 	}()
 
 	poolWorker := NewPoolWorker(ctx, &gQueue, &config, &waitGroup)
-	go poolWorker.RunDispatcher()
+	go poolWorker.RunDispatcherBlocking()
 	err = r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 	if err != nil {
 		log.Panic("Error running web server: ", err)

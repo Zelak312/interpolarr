@@ -28,7 +28,7 @@ func NewPoolWorker(ctx context.Context, queue *Queue,
 	}
 }
 
-func (p *PoolWorker) RunDispatcher() {
+func (p *PoolWorker) RunDispatcherBlocking() {
 	workChannel := make(chan Video, p.config.Workers)
 
 	for i := 0; i < p.config.Workers; i++ {
