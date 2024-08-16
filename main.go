@@ -69,7 +69,7 @@ func main() {
 		log.Info("Signal received: ", sig, " shuting down")
 		ctxCancel()
 
-		timer := time.NewTimer(time.Second * 10)
+		timer := time.NewTimer(time.Second * 30)
 		go func() {
 			<-timer.C
 			log.Info("Taking too long to shutdown, exiting forcefully")
