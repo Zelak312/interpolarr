@@ -7,8 +7,6 @@ import (
 	"path"
 	"sync"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type PoolWorker struct {

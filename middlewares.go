@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 func LoggerMiddleware() gin.HandlerFunc {
@@ -11,7 +11,7 @@ func LoggerMiddleware() gin.HandlerFunc {
 		c.Next()
 
 		// Log example
-		log.WithFields(log.Fields{
+		log.WithFields(logrus.Fields{
 			"status":  c.Writer.Status(),
 			"method":  c.Request.Method,
 			"path":    c.Request.URL.Path,

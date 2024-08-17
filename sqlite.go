@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"embed"
 	"io/fs"
-	"log"
 	"time"
 
 	_ "github.com/glebarez/go-sqlite"

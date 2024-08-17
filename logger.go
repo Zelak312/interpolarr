@@ -1,24 +1,25 @@
 package main
 
 import (
+	"errors"
 	"os"
-	"path"
-	"path/filepath"
 	"reflect"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/natefinch/lumberjack.v2"
+	"github.com/kjk/common/filerotate"
+	"github.com/sirupsen/logrus"
 )
 
 // cliHook for logging Info level and above to the CLI.
+var logFile *filerotate.File
+
 type cliHook struct{}
 
-func (h *cliHook) Levels() []log.Level {
-	return []log.Level{log.InfoLevel, log.WarnLevel, log.ErrorLevel, log.FatalLevel, log.PanicLevel}
+func (h *cliHook) Levels() []logrus.Level {
+	return []logrus.Level{logrus.InfoLevel, logrus.WarnLevel, logrus.ErrorLevel, logrus.FatalLevel, logrus.PanicLevel}
 }
 
-func (h *cliHook) Fire(entry *log.Entry) error {
+func (h *cliHook) Fire(entry *logrus.Entry) error {
 	line, err := entry.String()
 	if err != nil {
 		return err
@@ -27,29 +28,35 @@ func (h *cliHook) Fire(entry *log.Entry) error {
 	return err
 }
 
-func SetupLogger(logPath string) {
+func InitLogFile(logPath string) error {
 	// Rotating file logger setup
-	lumberjackLogger := &lumberjack.Logger{
-		Filename:   filepath.ToSlash(path.Join(logPath, "/current_log.log")),
-		MaxSize:    5, // in MB
-		MaxBackups: 10,
-		MaxAge:     30,   // in days
-		Compress:   true, // compress old log files
+	var err error
+	logFile, err = filerotate.NewDaily(logPath, "log.txt", nil)
+	return err
+}
+
+func CreateLogger(name string) (*logrus.Entry, error) {
+	if logFile == nil {
+		return nil, errors.New("log file was not initiated")
 	}
 
+	// Create logger
+	log := logrus.New()
+
 	// Logger configuration
-	log.SetFormatter(&log.JSONFormatter{
+	log.SetFormatter(&logrus.JSONFormatter{
 		TimestampFormat: time.RFC1123Z,
 	})
-	log.SetLevel(log.DebugLevel)
-	log.SetOutput(lumberjackLogger)
+	log.SetLevel(logrus.DebugLevel)
+	log.SetOutput(logFile)
 
 	// Adding CLI hook
 	log.AddHook(&cliHook{})
+	return log.WithField("from", name), nil
 }
 
-func StructFields(data interface{}) log.Fields {
-	fields := log.Fields{}
+func StructFields(data interface{}) logrus.Fields {
+	fields := logrus.Fields{}
 
 	// Use reflection to iterate through the struct's fields and add them to the fields map
 	val := reflect.ValueOf(data)

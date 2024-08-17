@@ -6,8 +6,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 func appendVideoCodecArgs(args []string, config FfmpegOptions) []string {

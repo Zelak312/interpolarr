@@ -12,9 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 type Video struct {
@@ -26,15 +25,26 @@ type Video struct {
 var gQueue Queue
 var sqlite Sqlite
 
+var log *logrus.Entry
+
 func main() {
 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
 	flag.Parse()
 	config, err := GetConfig(*configPath)
 	if err != nil {
-		log.WithField("configPath", configPath).Panic("Error get config: ", err)
+		panic("Error get config: " + err.Error())
 	}
 
-	SetupLogger(config.LogPath)
+	err = InitLogFile(config.LogPath)
+	if err != nil {
+		panic("Couldn't init log file: " + err.Error())
+	}
+
+	log, err = CreateLogger("server")
+	if err != nil {
+		panic("Couldn't create logger server")
+	}
+
 	log.WithFields(StructFields(config)).Debug("Parsed config")
 	if *config.DeleteInputFileWhenFinished {
 		log.Warn("DeleteInputFileWhenFinished is ON, it will delete the input file when finished!!!")
@@ -73,11 +83,11 @@ func main() {
 		go func() {
 			<-timer.C
 			log.Info("Taking too long to shutdown, exiting forcefully")
-			log.Exit(1)
+			os.Exit(1)
 		}()
 
 		waitGroup.Wait()
-		log.Exit(1)
+		os.Exit(1)
 	}()
 
 	poolWorker := NewPoolWorker(ctx, &gQueue, &config, &waitGroup)
