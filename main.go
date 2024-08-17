@@ -27,15 +27,8 @@ var sqlite Sqlite
 
 var log *logrus.Entry
 
-func main() {
-	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
-	flag.Parse()
-	config, err := GetConfig(*configPath)
-	if err != nil {
-		panic("Error get config: " + err.Error())
-	}
-
-	err = InitLogFile(config.LogPath)
+func setupLoggers(config *Config) {
+	err := InitLogFile(config.LogPath)
 	if err != nil {
 		panic("Couldn't init log file: " + err.Error())
 	}
@@ -44,7 +37,17 @@ func main() {
 	if err != nil {
 		panic("Couldn't create logger server")
 	}
+}
 
+func main() {
+	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
+	flag.Parse()
+	config, err := GetConfig(*configPath)
+	if err != nil {
+		panic("Error get config: " + err.Error())
+	}
+
+	setupLoggers(&config)
 	log.WithFields(StructFields(config)).Debug("Parsed config")
 	if *config.DeleteInputFileWhenFinished {
 		log.Warn("DeleteInputFileWhenFinished is ON, it will delete the input file when finished!!!")

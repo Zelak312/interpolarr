@@ -7,6 +7,8 @@ import (
 	"path"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type PoolWorker struct {
@@ -30,7 +32,13 @@ func (p *PoolWorker) RunDispatcherBlocking() {
 	workChannel := make(chan Video, p.config.Workers)
 
 	for i := 0; i < p.config.Workers; i++ {
-		go p.worker(i, workChannel)
+		// Setup Worker Logger
+		logger, err := CreateLogger(fmt.Sprintf("worker%d", i))
+		if err != nil {
+			log.Panicf("Couldn't create logger for worker: %d", i)
+		}
+
+		go p.worker(i, logger, workChannel)
 	}
 
 	for {
@@ -55,10 +63,10 @@ var retryLimit int = 5
 // TODO: split this function, it's getting pretty big
 // TODO: recheck the structure and content off this function
 // it seems like this could be way better
-func (p *PoolWorker) worker(id int, workChannel <-chan Video) {
+func (p *PoolWorker) worker(id int, log *logrus.Entry, workChannel <-chan Video) {
 	for video := range workChannel {
 		p.waitGroup.Add(1)
-		output, processVideoOutput := p.processVideo(id, video)
+		output, processVideoOutput := p.processVideo(id, log, video)
 		// check if context was canceled
 		if p.ctx.Err() != nil {
 			log.Debug("Ctx error is: ", p.ctx.Err())
@@ -179,7 +187,7 @@ type ProcessVideoOutput struct {
 }
 
 // TODO: split this function, it's getting quite big
-func (p *PoolWorker) processVideo(id int, video Video) (string, ProcessVideoOutput) {
+func (p *PoolWorker) processVideo(id int, log *logrus.Entry, video Video) (string, ProcessVideoOutput) {
 	log.WithFields(StructFields(video)).Info("Processing video")
 
 	// TODO: recheck video.Path is valid
