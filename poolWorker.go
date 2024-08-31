@@ -119,7 +119,7 @@ func (p *PoolWorker) worker(id int, log *logrus.Entry, workChannel <-chan Video)
 			continue
 		}
 
-		if processVideoOutput.skip {
+		if processVideoOutput.skip && *p.config.CopyFileToDestinationOnSkip {
 			log.WithField("srcPath", video.Path).
 				WithField("destPath", video.OutputPath).
 				Debug("Copying file to destination since it has been skipped")

@@ -22,6 +22,7 @@ type Config struct {
 	DeleteInputFileWhenFinished *bool         `yaml:"deleteInputFileWhenFinished"`
 	FfmpegOptions               FfmpegOptions `yaml:"ffmpegOptions"`
 	DeleteOutputIfAlreadyExist  *bool         `yaml:"deleteOutputIfAlreadyExist"`
+	CopyFileToDestinationOnSkip *bool         `yaml:"copyFileToDestinationOnSkip"`
 }
 
 type FfmpegOptions struct {
@@ -86,6 +87,11 @@ func verifyConfig(config *Config) error {
 	if config.DeleteOutputIfAlreadyExist == nil {
 		defaultVal := false
 		config.DeleteOutputIfAlreadyExist = &defaultVal
+	}
+
+	if config.CopyFileToDestinationOnSkip == nil {
+		defaultVal := false
+		config.CopyFileToDestinationOnSkip = &defaultVal
 	}
 
 	if config.LogPath == "" {
