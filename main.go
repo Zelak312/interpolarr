@@ -112,14 +112,44 @@ func addVideoToQueue(c *gin.Context) {
 
 	if err := c.ShouldBind(&video); err != nil {
 		c.String(400, err.Error())
+		return
 	}
 
+	videoExist, err := FileExist(video.Path)
+	if err != nil {
+		c.String(400, err.Error())
+		return
+	}
+
+	if !videoExist {
+		c.String(400, "video source not found")
+		return
+	}
+
+	// TODO: I want to do something to check if the output path
+	// is somewhat valid, but I also want it so that my app
+	// can construct subpath to a video that may not exist yet
+	// example:
+	// show1/episode1 I want it to not error if show1 doesn't exist
+	// since it could create it
+	// videoOutDirExist, err := FileExist(video.OutputPath)
+	// if err != nil {
+	// 	c.String(400, err.Error())
+	// 	return
+	// }
+
+	// if !videoOutDirExist {
+	// 	c.String(400, "video Output path not found")
+	// 	return
+	// }
+
 	log.WithFields(StructFields(video)).Debug("Adding video to queue")
-	// TODO: should check the paths carefully to make sure they are valid
-	_, err := sqlite.InsertVideo(&video)
+
+	_, err = sqlite.InsertVideo(&video)
 	if err != nil {
 		log.WithFields(StructFields(video)).Error("Error inserting the video: ", err)
 		c.String(400, err.Error())
+		return
 	}
 
 	gQueue.Enqueue(video)
@@ -132,18 +162,21 @@ func delVideoToQueue(c *gin.Context) {
 	id, err := strconv.ParseInt(idS, 10, 64)
 	if err != nil {
 		c.String(400, err.Error())
+		return
 	}
 
 	log.WithField("id", id).Debug("Deleting video by id")
 	err = sqlite.DeleteVideoByID(nil, id)
 	if err != nil {
 		c.String(400, err.Error())
+		return
 	}
 
 	video, ok := gQueue.RemoveByID(id)
 	if !ok {
 		log.WithField("id", id).Error("Failed to delete the video by id: ", err)
 		c.String(400, "Didn't find video")
+		return
 	}
 
 	log.WithField("id", id).Info("Sucessfully delete video by id")

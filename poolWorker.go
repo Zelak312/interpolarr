@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -11,11 +12,21 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var retryLimit int = 5
+
 type PoolWorker struct {
 	ctx       context.Context
 	queue     *Queue
 	config    *Config
 	waitGroup *sync.WaitGroup
+}
+
+// TODO: add process output in this
+type ProcessVideoOutput struct {
+	skip                   bool
+	outputFileAlreadyExist bool
+	videoNotFound          bool
+	err                    error
 }
 
 func NewPoolWorker(ctx context.Context, queue *Queue,
@@ -38,7 +49,7 @@ func (p *PoolWorker) RunDispatcherBlocking() {
 			log.Panicf("Couldn't create logger for worker: %d", i)
 		}
 
-		go p.worker(i, logger, workChannel)
+		go p.initWorker(i, logger, workChannel)
 	}
 
 	for {
@@ -56,142 +67,155 @@ func (p *PoolWorker) RunDispatcherBlocking() {
 	}
 }
 
-var retryLimit int = 5
-
-// Make sure to call waitGroup.Done() at when no errors
-// Otherwise the cancel process will get stuck waiting
-// TODO: split this function, it's getting pretty big
-// TODO: recheck the structure and content off this function
-// it seems like this could be way better
-func (p *PoolWorker) worker(id int, log *logrus.Entry, workChannel <-chan Video) {
+func (p *PoolWorker) initWorker(id int, log *logrus.Entry, workChannel <-chan Video) {
 	for video := range workChannel {
 		p.waitGroup.Add(1)
-		output, processVideoOutput := p.processVideo(id, log, video)
-		// check if context was canceled
+		err := p.runWorker(id, log, &video)
 		if p.ctx.Err() != nil {
 			log.Debug("Ctx error is: ", p.ctx.Err())
 			if p.ctx.Err() == context.Canceled {
 				log.Debug("Ctx was canceled")
+
+				// End function so call return
 				p.waitGroup.Done()
 				return
 			}
-
-			log.Error("Unknown ctx error")
-			p.waitGroup.Done()
-			return
 		}
 
-		if processVideoOutput.err != nil {
-			log.WithFields(StructFields(video)).Error("Error processing video: ", processVideoOutput.err)
-			if output != "" {
-				log.Debug("Process ouput: ", output)
-			}
-
-			retries, err := sqlite.GetVideoRetries(&video)
-			if err != nil {
-				log.WithFields(StructFields(video)).Error("Failed to get retries: ", err)
-			}
-
-			if retries >= retryLimit {
-				log.WithFields(StructFields(video)).Info("Video failed, removing it from queue")
-				err = sqlite.FailVideo(&video, output, processVideoOutput.err.Error())
-				if err != nil {
-					log.WithFields(StructFields(video)).Error("Failed to fail the video: ", err)
-					p.waitGroup.Done()
-					continue
-				}
-
-				p.waitGroup.Done()
-				continue
-			} else if err == nil {
-				retries++
-				err = sqlite.UpdateVideoRetries(&video, retries)
-				if err != nil {
-					log.WithFields(StructFields(video)).Error("Failed to update video retries: ", err)
-					p.waitGroup.Done()
-					continue
-				}
-			}
-
-			p.queue.Enqueue(video)
-			log.WithFields(StructFields(video)).Info("Requeue video (back of the queue and retrying)")
-			p.waitGroup.Done()
-			continue
-		}
-
-		if processVideoOutput.skip && *p.config.CopyFileToDestinationOnSkip {
-			log.WithField("srcPath", video.Path).
-				WithField("destPath", video.OutputPath).
-				Debug("Copying file to destination since it has been skipped")
-			ok, err := IsSamePath(video.Path, video.OutputPath)
-			if err != nil {
-				log.Error("Failed to match same path: ", err)
-				p.waitGroup.Done()
-				continue
-			}
-
-			if !ok {
-				err := CopyFile(video.Path, video.OutputPath)
-				if err != nil {
-					log.Error("Failed to copy file to destination: ", err)
-					p.waitGroup.Done()
-					continue
-				}
-
-				log.Info("Video file copied sucessfully")
-			} else {
-				log.Warn("Can't copy file with same path as output path")
-				p.waitGroup.Done()
-				continue
-			}
-		}
-
-		err := sqlite.MarkVideoAsDone(&video)
 		if err != nil {
-			log.Error("Failed to mark video as done: ", err)
-			p.waitGroup.Done()
-			continue
+			// TODO: make a place where I can store warnings
+			// So I can store warning for each videos
+			// Because the otherwise the issues from runWorker (that doesn't retry)
+			// Won't show anywhere
 		}
 
-		if *p.config.DeleteInputFileWhenFinished {
-			log.Debug("Deleting input file")
-			ok, err := IsSamePath(video.Path, video.OutputPath)
-			if err != nil {
-				log.Error("Error while looking up same path: ", err)
-				p.waitGroup.Done()
-				continue
-			}
-
-			if !ok {
-				err = os.Remove(video.Path)
-				if err != nil {
-					log.WithFields(StructFields(video)).Error("Failed to delete vidoe: ", err)
-				}
-
-				log.WithField("file", video.Path).Info("Deleted input file")
-			} else {
-				log.WithFields(StructFields(video)).Warn("Detected same path with delete input file option, not deleting anything!")
-			}
-		}
-
-		log.Info("Finished processing video")
 		p.waitGroup.Done()
 	}
 }
 
-// TODO: add process output in this
-type ProcessVideoOutput struct {
-	skip                   bool
-	outputFileAlreadyExist bool
-	err                    error
+func (p *PoolWorker) runWorker(id int, log *logrus.Entry, video *Video) error {
+	output, processVideoOutput := p.processVideo(id, log, video)
+	if processVideoOutput.err != nil {
+		return processVideoOutput.err
+	}
+
+	if processVideoOutput.err != nil {
+		p.handleProcessVideoError(video, output, &processVideoOutput)
+		// Error was handled already
+		return nil
+	}
+
+	if processVideoOutput.skip && *p.config.CopyFileToDestinationOnSkip {
+		log.WithField("srcPath", video.Path).
+			WithField("destPath", video.OutputPath).
+			Debug("Copying file to destination since it has been skipped")
+		ok, err := IsSamePath(video.Path, video.OutputPath)
+		if err != nil {
+			log.Error("Failed to match same path: ", err)
+			return err
+		}
+
+		if !ok {
+			err := CopyFile(video.Path, video.OutputPath)
+			if err != nil {
+				log.Error("Failed to copy file to destination: ", err)
+				return err
+			}
+
+			log.Info("Video file copied sucessfully")
+		} else {
+			log.Warn("Can't copy file with same path as output path")
+			return err
+		}
+	}
+
+	if processVideoOutput.videoNotFound {
+		log.Error("Video to process wasn't found: ", video.Path)
+		notFoundErr := errors.New("source video not found")
+		p.failVideo(video, output, notFoundErr)
+		return notFoundErr
+	}
+
+	err := sqlite.MarkVideoAsDone(video)
+	if err != nil {
+		log.Error("Failed to mark video as done: ", err)
+		return err
+	}
+
+	if *p.config.DeleteInputFileWhenFinished && !processVideoOutput.outputFileAlreadyExist {
+		log.Debug("Deleting input file")
+		ok, err := IsSamePath(video.Path, video.OutputPath)
+		if err != nil {
+			log.Error("Error while looking up same path: ", err)
+			return err
+		}
+
+		if !ok {
+			err = os.Remove(video.Path)
+			if err != nil {
+				log.WithFields(StructFields(video)).Error("Failed to delete vidoe: ", err)
+			}
+
+			log.WithField("file", video.Path).Info("Deleted input file")
+		} else {
+			log.WithFields(StructFields(video)).Warn("Detected same path with delete input file option, not deleting anything!")
+		}
+	}
+
+	log.Info("Finished processing video")
+	return nil
 }
 
-// TODO: split this function, it's getting quite big
-func (p *PoolWorker) processVideo(id int, log *logrus.Entry, video Video) (string, ProcessVideoOutput) {
+func (p *PoolWorker) handleProcessVideoError(video *Video, output string, processVideoOutput *ProcessVideoOutput) {
+	log.WithFields(StructFields(video)).Error("Error processing video: ", processVideoOutput.err)
+	if output != "" {
+		log.Debug("Process ouput: ", output)
+	}
+
+	retries, err := sqlite.GetVideoRetries(video)
+	if err != nil {
+		log.WithFields(StructFields(video)).Error("Failed to get retries: ", err)
+		return
+	}
+
+	if retries >= retryLimit {
+		_ = p.failVideo(video, output, processVideoOutput.err)
+		return
+	}
+
+	retries++
+	err = sqlite.UpdateVideoRetries(video, retries)
+	if err != nil {
+		log.WithFields(StructFields(video)).Error("Failed to update video retries: ", err)
+		return
+	}
+
+	p.queue.Enqueue(*video)
+	log.WithFields(StructFields(video)).Info("Requeue video (back of the queue and retrying)")
+}
+
+func (p *PoolWorker) failVideo(video *Video, output string, failError error) error {
+	log.WithFields(StructFields(video)).Info("Video failed, removing it from queue")
+	err := sqlite.FailVideo(video, output, failError.Error())
+	if err != nil {
+		log.WithFields(StructFields(video)).Error("Failed to fail the video: ", err)
+		return err
+	}
+
+	return nil
+}
+
+func (p *PoolWorker) processVideo(id int, log *logrus.Entry, video *Video) (string, ProcessVideoOutput) {
 	log.WithFields(StructFields(video)).Info("Processing video")
 
-	// TODO: recheck video.Path is valid
-	// need to make sure the video actully exist!!
+	videoExist, err := FileExist(video.Path)
+	if err != nil {
+		return "", ProcessVideoOutput{}
+	}
+
+	if !videoExist {
+		return "", ProcessVideoOutput{videoNotFound: true}
+	}
 
 	outputExist, err := FileExist(video.OutputPath)
 	if err != nil {
@@ -199,7 +223,11 @@ func (p *PoolWorker) processVideo(id int, log *logrus.Entry, video Video) (strin
 	}
 
 	// TODO: I think deleting the output should be done
-	// when the output is going to be created
+	// right before the other output is going to be created
+	// Actually, future zelak here, I should do that yes
+	// but also use move somewhere, delete, then create the file
+	// so if there is an issue, I can move back the old file
+	// without loss
 	if outputExist && *p.config.DeleteOutputIfAlreadyExist {
 		log.Debug("Output already exist, deleting file")
 		err = os.Remove(video.OutputPath)
