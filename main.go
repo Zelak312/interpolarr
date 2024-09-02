@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -73,9 +72,10 @@ func main() {
 	r.POST("/queue", addVideoToQueue)
 	r.DELETE("/queue/:id", delVideoToQueue)
 
-	var waitGroup sync.WaitGroup
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
+	poolWorker := NewPoolWorker(ctx, &gQueue, &config)
+
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
@@ -89,11 +89,11 @@ func main() {
 			os.Exit(1)
 		}()
 
-		waitGroup.Wait()
+		poolWorker.waitGroup.Wait()
 		os.Exit(1)
 	}()
 
-	poolWorker := NewPoolWorker(ctx, &gQueue, &config, &waitGroup)
+	// Start running things
 	go poolWorker.RunDispatcherBlocking()
 	err = r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 	if err != nil {
