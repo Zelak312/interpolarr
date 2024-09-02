@@ -65,7 +65,8 @@ type Command struct {
 }
 
 func (c *Command) Write(p []byte) (n int, err error) {
-	log.WithField("cmdName", c.name).Debug(string(p))
+	// TODO: bring this back with trace instead
+	// log.WithField("cmdName", c.name).Debug(string(p))
 	return c.output.Write(p)
 }
 

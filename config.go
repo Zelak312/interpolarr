@@ -23,6 +23,7 @@ type Config struct {
 	FfmpegOptions               FfmpegOptions `yaml:"ffmpegOptions"`
 	DeleteOutputIfAlreadyExist  *bool         `yaml:"deleteOutputIfAlreadyExist"`
 	CopyFileToDestinationOnSkip *bool         `yaml:"copyFileToDestinationOnSkip"`
+	RifeExtraArguments          string        `yaml:"rifeExtraArguments"`
 }
 
 type FfmpegOptions struct {

@@ -95,8 +95,10 @@ func (p *PoolWorker) initWorker(id int, log *logrus.Entry, workChannel <-chan Vi
 
 func (p *PoolWorker) runWorker(id int, log *logrus.Entry, video *Video) error {
 	output, processVideoOutput := p.processVideo(id, log, video)
-	if processVideoOutput.err != nil {
-		return processVideoOutput.err
+	if p.ctx.Err() != nil {
+		// The context is cancelled, just return
+		// it's handled in initWorker
+		return nil
 	}
 
 	if processVideoOutput.err != nil {
@@ -247,24 +249,23 @@ func (p *PoolWorker) processVideo(id int, log *logrus.Entry, video *Video) (stri
 		}
 	}
 
-	fps, err := GetVideoFPS(p.ctx, video.Path)
+	log.Info("Getting video fps and framecount")
+	videoInfo, err := GetVideoInfo(p.ctx, video.Path)
 	if err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	targetFPS := p.config.TargetFPS
-	log.Info("fps: ", fps)
-	log.Info("target FPS: ", targetFPS)
+	log.Info("fps: ", videoInfo.Fps)
+	log.Info("target FPS: ", p.config.TargetFPS)
+	log.Info("framecount: ", videoInfo.FrameCount)
 
-	if fps >= targetFPS {
+	if videoInfo.Fps >= p.config.TargetFPS {
 		log.Info(`Video is already higher or equal to target FPS, skipping`)
 		return "", ProcessVideoOutput{skip: true}
 	}
 
-	if *p.config.BypassHighFPS && fps > targetFPS/2 {
-		log.Info("Bypassing video because of high FPS, skipping")
-		return "", ProcessVideoOutput{skip: true}
-	}
+	targetFrameCount := int64(float64(videoInfo.FrameCount) / videoInfo.Fps * p.config.TargetFPS)
+	log.Info("Calculated frame target: ", targetFrameCount)
 
 	log.Debug("Creating worker folder if doesn't exist")
 	err = os.MkdirAll(processFolderWorker, os.ModePerm)
@@ -272,16 +273,18 @@ func (p *PoolWorker) processVideo(id int, log *logrus.Entry, video *Video) (stri
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	log.Infof("Converting video to %g fps", targetFPS/2)
-	fpsConversionOutput := path.Join(processFolderWorker, "video.mp4")
-	output, err := ConvertVideoToFPS(p.ctx, p.config.FfmpegOptions, video.Path, fpsConversionOutput, targetFPS/2)
-	if err != nil {
-		return output, ProcessVideoOutput{err: err}
-	}
+	// Not used anymore but is needed for older rife models
+	// so keeping it here
+	// log.Infof("Converting video to %g fps", p.con)
+	// fpsConversionOutput := path.Join(processFolderWorker, "video.mp4")
+	// output, err := ConvertVideoToFPS(p.ctx, p.config.FfmpegOptions, video.Path, fpsConversionOutput, targetFPS/2)
+	// if err != nil {
+	// 	return output, ProcessVideoOutput{err: err}
+	// }
 
 	log.Info("Extracting audio from the video")
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
-	output, err = ExtractAudio(p.ctx, fpsConversionOutput, audioPath)
+	output, err := ExtractAudio(p.ctx, video.Path, audioPath)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
@@ -294,7 +297,7 @@ func (p *PoolWorker) processVideo(id int, log *logrus.Entry, video *Video) (stri
 	}
 
 	log.Info("Extracting video frames")
-	output, err = ExtractFrames(p.ctx, p.config.FfmpegOptions, fpsConversionOutput, framesFolder)
+	output, err = ExtractFrames(p.ctx, p.config.FfmpegOptions, video.Path, framesFolder)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
@@ -307,7 +310,8 @@ func (p *PoolWorker) processVideo(id int, log *logrus.Entry, video *Video) (stri
 	}
 
 	log.Info("Interpolating video")
-	output, err = InterpolateVideo(p.ctx, p.config.RifeBinary, framesFolder, interpolatedFolder, p.config.ModelPath)
+	output, err = InterpolateVideo(p.ctx, p.config.RifeBinary, framesFolder, interpolatedFolder,
+		p.config.ModelPath, targetFrameCount, p.config.RifeExtraArguments)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
@@ -323,8 +327,8 @@ func (p *PoolWorker) processVideo(id int, log *logrus.Entry, video *Video) (stri
 		}
 	}
 
-	log.Infof("Reconstructing video with audio and interpolated frames to %g fps", targetFPS)
-	output, err = ConstructVideoToFPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath, targetFPS)
+	log.Infof("Reconstructing video with audio and interpolated frames to %g fps", p.config.TargetFPS)
+	output, err = ConstructVideoToFPS(p.ctx, p.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath, p.config.TargetFPS)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
