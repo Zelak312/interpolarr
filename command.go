@@ -9,18 +9,28 @@ import (
 )
 
 type Command struct {
-	cmd        *exec.Cmd
-	name       string
-	output     bytes.Buffer
-	stdoutPipe io.ReadCloser
-	stderrPipe io.ReadCloser
+	cmd              *exec.Cmd
+	name             string
+	output           bytes.Buffer
+	stdoutPipe       io.ReadCloser
+	stdoutPipeWriter io.WriteCloser
+	stderrPipe       io.ReadCloser
+	stderrPipeWriter io.WriteCloser
 }
 
 func NewCommandContext(ctx context.Context, cmd_name string, args ...string) *Command {
 	cmd := exec.CommandContext(ctx, cmd_name, args...)
 
-	command := Command{cmd: cmd, name: cmd_name + " " + strings.Join(args, " ")}
-	return &command
+	c := Command{cmd: cmd, name: cmd_name + " " + strings.Join(args, " ")}
+
+	stdoutPipeReader, stdoutPipeWriter := io.Pipe()
+	c.stdoutPipe = stdoutPipeReader
+	c.stdoutPipeWriter = stdoutPipeWriter
+
+	stderrPipeReader, stderrPipeWriter := io.Pipe()
+	c.stderrPipe = stderrPipeReader
+	c.stderrPipeWriter = stderrPipeWriter
+	return &c
 }
 
 func CreateAndRunCommandContext(ctx context.Context, cmd_name string, args ...string) (string, error) {
@@ -39,17 +49,19 @@ func (c *Command) CombinedOutput() (string, error) {
 		return "", err
 	}
 
-	multiWriter := io.MultiWriter()
+	multiWriterStdout := io.MultiWriter(&c.output, c.stdoutPipeWriter)
+	multiWriterStderr := io.MultiWriter(&c.output, c.stderrPipeWriter)
 	go func() {
-		io.Copy(multiWriter, stdoutPipe)
+		io.Copy(multiWriterStdout, stdoutPipe)
+		c.stdoutPipeWriter.Close()
 	}()
 	go func() {
-		io.Copy(multiWriter, stderrPipe)
+		io.Copy(multiWriterStderr, stderrPipe)
+		c.stderrPipeWriter.Close()
 	}()
-
-	c.stdoutPipe = stdoutPipe
-	c.stderrPipe = stderrPipe
 
 	err = c.cmd.Run()
+	c.stdoutPipe.Close()
+	c.stderrPipe.Close()
 	return c.output.String(), err
 }

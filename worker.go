@@ -17,6 +17,11 @@ type Worker struct {
 	id         int
 	logger     *logrus.Entry
 	poolWorker *PoolWorker
+
+	// Progress
+	Step      int
+	TotalStep int
+	Progress  float64
 }
 
 func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker) *Worker {
@@ -208,6 +213,16 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		}
 	}
 
+	// TODO: count steps and assign totalStep
+	// also assign and modify current step
+	// TODO: change these setps to actually be in a wokerStep
+	// or something like this, so the progressChan, totalStep and step
+	// can be done dynamically if I add more steps and shit
+	progressChan := make(chan float64)
+	defer close(progressChan)
+	go w.updateProgress(progressChan)
+	progressChan <- 0
+
 	w.logger.Info("Getting video fps and framecount")
 	videoInfo, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
 	if err != nil {
@@ -243,11 +258,12 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 
 	w.logger.Info("Extracting audio from the video")
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
-	output, err := ExtractAudio(w.poolWorker.ctx, video.Path, audioPath)
+	output, err := ExtractAudio(w.poolWorker.ctx, video.Path, audioPath, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
+	progressChan <- 0
 	w.logger.Debug("Creating frames folder")
 	framesFolder := path.Join(processFolderWorker, "frames")
 	err = os.Mkdir(framesFolder, os.ModePerm)
@@ -256,11 +272,12 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	}
 
 	w.logger.Info("Extracting video frames")
-	output, err = ExtractFrames(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions, video.Path, framesFolder)
+	output, err = ExtractFrames(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions, video.Path, framesFolder, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
+	progressChan <- 0
 	w.logger.Debug("Creating interpolation frames folder")
 	interpolatedFolder := path.Join(processFolderWorker, "interpolated_frames")
 	err = os.Mkdir(interpolatedFolder, os.ModePerm)
@@ -287,11 +304,13 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	}
 
 	w.logger.Infof("Reconstructing video with audio and interpolated frames to %g fps", w.poolWorker.config.TargetFPS)
-	output, err = ConstructVideoToFPS(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions, interpolatedFolder, audioPath, video.OutputPath, w.poolWorker.config.TargetFPS)
+	output, err = ConstructVideoToFPS(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions,
+		interpolatedFolder, audioPath, video.OutputPath, w.poolWorker.config.TargetFPS, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
+	progressChan <- 0
 	w.logger.Debug("Removing worker folder")
 	err = os.RemoveAll(processFolderWorker)
 	if err != nil {
@@ -299,4 +318,11 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	}
 
 	return "", ProcessVideoOutput{}
+}
+
+func (w *Worker) updateProgress(progressChan <-chan float64) {
+	for progress := range progressChan {
+		w.Progress = progress
+		w.logger.Info("Worker Update Progress:", progress)
+	}
 }

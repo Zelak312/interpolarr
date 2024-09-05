@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -12,26 +14,6 @@ type VideoInfo struct {
 	Fps        float64
 	FrameCount int64
 }
-
-// func appendVideoCodecArgs(args []string, config FfmpegOptions) []string {
-// 	if config.VideoCodec != "" {
-// 		args = append(args, "-c:v", config.VideoCodec)
-// 	}
-
-// 	return args
-// }
-
-// func appendHWAccelArgs(args []string, config FfmpegOptions) []string {
-// 	if config.HWAccel != "" {
-// 		args = append(args, "-hwaccel", config.HWAccel)
-// 	}
-
-// 	if config.HWAccelDecodeFlag != "" {
-// 		args = append(args, "-c:v", config.HWAccelDecodeFlag)
-// 	}
-
-// 	return args
-// }
 
 func appendHWAccelEncodeArgs(args []string, config FfmpegOptions) []string {
 	if config.HWAccelEncodeFlag != "" {
@@ -70,42 +52,34 @@ func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, error) {
 	return &VideoInfo{Fps: fps, FrameCount: frameCount}, nil
 }
 
-// func ConvertVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string, fps float64) (string, error) {
-// 	args := []string{}
-// 	args = appendHWAccelArgs(args, config)
-// 	args = append(args, "-i", inputPath, "-filter:v", fmt.Sprintf("fps=%g", fps))
-// 	args = appendVideoCodecArgs(args, config)
-// 	args = append(args, outputPath)
-// 	cmd := CommandContextLogger(ctx, "ffmpeg", args...)
-// 	output, err := cmd.CombinedOutput()
-// 	return string(output), err
-// }
-
-func ExtractAudio(ctx context.Context, inputPath string, outputPath string) (string, error) {
-	cmd := NewCommandContext(ctx, "ffmpeg", "-i", inputPath, "-vn", "-acodec", "copy", outputPath)
+func ExtractAudio(ctx context.Context, inputPath string, outputPath string, progressChan chan<- float64) (string, error) {
+	cmd := NewCommandContext(ctx, "ffmpeg", "-i", inputPath, "-vn", "-acodec", "copy", "-progress", "pipe:2", outputPath)
+	go parseProgressAndReport(cmd, progressChan)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
-func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string) (string, error) {
+func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string, progressChan chan<- float64) (string, error) {
 	outputPathTemplate := path.Join(outputPath, "frame_%08d.png")
 	args := []string{}
 	if config.HWAccelDecodeFlag != "" {
 		args = append(args, "-c:v", config.HWAccelDecodeFlag)
 	}
 
-	args = append(args, "-i", inputPath, "-fps_mode", "passthrough", outputPathTemplate)
+	args = append(args, "-i", inputPath, "-fps_mode", "passthrough", "-progress", "pipe:2", outputPathTemplate)
 	cmd := NewCommandContext(ctx, "ffmpeg", args...)
+	go parseProgressAndReport(cmd, progressChan)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
-func ConstructVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath string, audioPath string, outputPath string, fps float64) (string, error) {
+func ConstructVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath string, audioPath string, outputPath string, fps float64, progressChan chan<- float64) (string, error) {
 	inputPathTemplate := path.Join(inputPath, "%08d.png")
 	args := []string{"-framerate", fmt.Sprintf("%g", fps), "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy"}
 	args = appendHWAccelEncodeArgs(args, config)
-	args = append(args, "-crf", "20", "-pix_fmt", "yuv420p", outputPath)
+	args = append(args, "-crf", "20", "-pix_fmt", "yuv420p", "-progress", "pipe:2", outputPath)
 	cmd := NewCommandContext(ctx, "ffmpeg", args...)
+	go parseProgressAndReport(cmd, progressChan)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -127,4 +101,34 @@ func parseFPS(fpsFraction string) (float64, error) {
 	}
 
 	return numerator / denominator, nil
+}
+
+// TODO: handle errors in here
+func parseProgressAndReport(cmd *Command, progressChan chan<- float64) {
+	var totalDuration float64
+	durationRegex := regexp.MustCompile(`Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})`)
+
+	scanner := bufio.NewScanner(cmd.stderrPipe)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Capture the total duration from ffmpeg's initial output
+		if matches := durationRegex.FindStringSubmatch(line); matches != nil && totalDuration == 0 {
+			hours, _ := strconv.ParseFloat(matches[1], 64)
+			minutes, _ := strconv.ParseFloat(matches[2], 64)
+			seconds, _ := strconv.ParseFloat(matches[3], 64)
+			totalDuration = hours*3600 + minutes*60 + seconds
+		}
+
+		// Parse the out_time_ms line to calculate progress
+		if strings.HasPrefix(line, "out_time_ms=") {
+			outTimeMs, _ := strconv.ParseFloat(strings.Split(line, "=")[1], 64)
+			progressSeconds := outTimeMs / 1000000.0 // Convert ms to seconds
+
+			// Calculate progress percentage
+			if totalDuration > 0 {
+				progressChan <- (progressSeconds / totalDuration) * 100
+			}
+		}
+	}
 }
