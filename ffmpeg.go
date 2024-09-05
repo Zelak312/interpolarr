@@ -42,7 +42,7 @@ func appendHWAccelEncodeArgs(args []string, config FfmpegOptions) []string {
 }
 
 func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, error) {
-	cmd := CommandContextLogger(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
+	cmd := NewCommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
 		"-show_entries", "stream=r_frame_rate,nb_read_frames", "-of", "csv=p=0", inputPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -82,7 +82,7 @@ func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, error) {
 // }
 
 func ExtractAudio(ctx context.Context, inputPath string, outputPath string) (string, error) {
-	cmd := CommandContextLogger(ctx, "ffmpeg", "-i", inputPath, "-vn", "-acodec", "copy", outputPath)
+	cmd := NewCommandContext(ctx, "ffmpeg", "-i", inputPath, "-vn", "-acodec", "copy", outputPath)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -95,7 +95,7 @@ func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, 
 	}
 
 	args = append(args, "-i", inputPath, "-fps_mode", "passthrough", outputPathTemplate)
-	cmd := CommandContextLogger(ctx, "ffmpeg", args...)
+	cmd := NewCommandContext(ctx, "ffmpeg", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -105,7 +105,7 @@ func ConstructVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath st
 	args := []string{"-framerate", fmt.Sprintf("%g", fps), "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy"}
 	args = appendHWAccelEncodeArgs(args, config)
 	args = append(args, "-crf", "20", "-pix_fmt", "yuv420p", outputPath)
-	cmd := CommandContextLogger(ctx, "ffmpeg", args...)
+	cmd := NewCommandContext(ctx, "ffmpeg", args...)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }

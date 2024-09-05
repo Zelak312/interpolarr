@@ -1,14 +1,10 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
 func CopyFile(src string, dest string) error {
@@ -56,31 +52,4 @@ func FileExist(f string) (bool, error) {
 	}
 
 	return true, err
-}
-
-type Command struct {
-	cmd    *exec.Cmd
-	name   string
-	output bytes.Buffer
-}
-
-func (c *Command) Write(p []byte) (n int, err error) {
-	// TODO: bring this back with trace instead
-	// log.WithField("cmdName", c.name).Debug(string(p))
-	return c.output.Write(p)
-}
-
-func (c *Command) CombinedOutput() (string, error) {
-	err := c.cmd.Run()
-	return c.output.String(), err
-}
-
-func CommandContextLogger(ctx context.Context, name string, arg ...string) *Command {
-	cmd := exec.CommandContext(ctx, name, arg...)
-
-	command := Command{cmd: cmd, name: name + " " + strings.Join(arg, " ")}
-	cmd.Stdout = &command
-	cmd.Stderr = &command
-
-	return &command
 }
