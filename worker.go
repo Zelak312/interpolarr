@@ -47,6 +47,7 @@ func (w *Worker) start() {
 		}
 
 		if err != nil {
+			w.logger.Warn(err)
 			// TODO: make a place where I can store warnings
 			// So I can store warning for each videos
 			// Because the otherwise the issues from runWorker (that doesn't retry)
@@ -324,6 +325,6 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 func (w *Worker) updateProgress(progressChan <-chan float64) {
 	for progress := range progressChan {
 		w.Progress = progress
-		w.logger.Info("Worker Update Progress:", progress)
+		// w.logger.Info("Worker Update Progress:", progress)
 	}
 }
