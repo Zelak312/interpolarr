@@ -285,9 +285,10 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		return "", ProcessVideoOutput{err: err}
 	}
 
+	progressChan <- 0
 	w.logger.Info("Interpolating video")
 	output, err = InterpolateVideo(w.poolWorker.ctx, w.poolWorker.config.RifeBinary, framesFolder, interpolatedFolder,
-		w.poolWorker.config.ModelPath, targetFrameCount, w.poolWorker.config.RifeExtraArguments)
+		w.poolWorker.config.ModelPath, targetFrameCount, w.poolWorker.config.RifeExtraArguments, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}

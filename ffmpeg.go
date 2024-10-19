@@ -54,7 +54,7 @@ func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, error) {
 
 func ExtractAudio(ctx context.Context, inputPath string, outputPath string, progressChan chan<- float64) (string, error) {
 	cmd := NewCommandContext(ctx, "ffmpeg", "-i", inputPath, "-vn", "-acodec", "copy", "-progress", "pipe:2", outputPath)
-	go parseProgressAndReport(cmd, progressChan)
+	go parseProgressFFmpeg(cmd, progressChan)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -68,7 +68,7 @@ func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, 
 
 	args = append(args, "-i", inputPath, "-fps_mode", "passthrough", "-progress", "pipe:2", outputPathTemplate)
 	cmd := NewCommandContext(ctx, "ffmpeg", args...)
-	go parseProgressAndReport(cmd, progressChan)
+	go parseProgressFFmpeg(cmd, progressChan)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -79,7 +79,7 @@ func ConstructVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath st
 	args = appendHWAccelEncodeArgs(args, config)
 	args = append(args, "-crf", "20", "-pix_fmt", "yuv420p", "-progress", "pipe:2", outputPath)
 	cmd := NewCommandContext(ctx, "ffmpeg", args...)
-	go parseProgressAndReport(cmd, progressChan)
+	go parseProgressFFmpeg(cmd, progressChan)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
@@ -104,8 +104,9 @@ func parseFPS(fpsFraction string) (float64, error) {
 }
 
 // TODO: handle errors in here
-func parseProgressAndReport(cmd *Command, progressChan chan<- float64) {
+func parseProgressFFmpeg(cmd *Command, progressChan chan<- float64) {
 	var totalDuration float64
+	// TODO: check if it should be better to compile the regex only once
 	durationRegex := regexp.MustCompile(`Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})`)
 
 	scanner := bufio.NewScanner(cmd.stderrPipe)
