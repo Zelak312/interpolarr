@@ -224,9 +224,9 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	progressChan <- 0
 
 	w.logger.Info("Getting video fps and framecount")
-	videoInfo, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
+	videoInfo, output, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
 	if err != nil {
-		return "", ProcessVideoOutput{err: err}
+		return output, ProcessVideoOutput{err: err}
 	}
 
 	w.logger.Info("fps: ", videoInfo.Fps)
@@ -258,7 +258,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 
 	w.logger.Info("Extracting audio from the video")
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
-	output, err := ExtractAudio(w.poolWorker.ctx, video.Path, audioPath, progressChan)
+	output, err = ExtractAudio(w.poolWorker.ctx, video.Path, audioPath, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
