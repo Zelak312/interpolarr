@@ -63,12 +63,12 @@ func (p *PoolWorker) RunDispatcherBlocking() {
 		case <-p.ctx.Done():
 			return
 		default:
-			// TODO: make this better
-			if len(p.workChannel) != p.config.Workers {
-				video, ok := p.queue.Dequeue()
-				if ok {
-					p.workChannel <- video
-				} else {
+			video, ok := p.queue.Peek()
+			if ok {
+				select {
+				case p.workChannel <- video:
+					p.queue.Dequeue()
+				default:
 					time.Sleep(100 * time.Millisecond)
 				}
 			} else {

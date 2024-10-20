@@ -29,6 +29,17 @@ func (q *Queue) Enqueue(item Video) {
 	q.videos = append(q.videos, item)
 }
 
+func (q *Queue) Peek() (Video, bool) {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
+	if len(q.videos) == 0 {
+		return Video{}, false
+	}
+
+	return q.videos[0], true
+}
+
 func (q *Queue) Dequeue() (Video, bool) {
 	q.lock.Lock()
 	defer q.lock.Unlock()

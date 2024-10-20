@@ -3,7 +3,7 @@ package main
 
 import (
 	"context"
-	_ "embed"
+	"embed"
 	"flag"
 	"fmt"
 	"net/http"
@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Zelak312/interpolarr/views"
+	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -42,8 +42,8 @@ func setupLoggers(config *Config) {
 	}
 }
 
-//go:embed static/favicon.ico
-var favicon []byte
+//go:embed views/*
+var viewFiles embed.FS
 
 func main() {
 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
@@ -73,15 +73,19 @@ func main() {
 	}
 
 	r := gin.Default()
-	r.HTMLRender = &views.HTMLTemplRenderer{}
-
 	r.Use(LoggerMiddleware())
-	r.GET("/", renderMainPapge)
-	r.GET("/favicon.ico", renderFavicon)
-	r.GET("/ping", ping)
-	r.GET("/queue", listVideoQueue)
-	r.POST("/queue", addVideoToQueue)
-	r.DELETE("/queue/:id", delVideoToQueue)
+
+	// UI
+	r.Use(static.Serve("/", static.EmbedFolder(viewFiles, "views")))
+
+	// API
+	api := r.Group("/api")
+	{
+		api.GET("/ping", ping)
+		api.GET("/queue", listVideoQueue)
+		api.POST("/queue", addVideoToQueue)
+		api.DELETE("/queue/:id", delVideoToQueue)
+	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
@@ -110,10 +114,6 @@ func main() {
 	if err != nil {
 		log.Panic("Error running web server: ", err)
 	}
-}
-
-func renderFavicon(c *gin.Context) {
-	c.Data(http.StatusOK, "image/x-icon", favicon)
 }
 
 func ping(c *gin.Context) {
@@ -201,8 +201,4 @@ func delVideoToQueue(c *gin.Context) {
 func listVideoQueue(c *gin.Context) {
 	log.Debug("Getting video queue")
 	c.JSON(200, gQueue.GetVideos())
-}
-
-func renderMainPapge(c *gin.Context) {
-	c.HTML(http.StatusOK, "", views.Index(len(gQueue.GetVideos())+len(poolWorker.workChannel), poolWorker.GetActiveWorkerCount()))
 }
