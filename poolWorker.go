@@ -34,7 +34,7 @@ func NewPoolWorker(ctx context.Context, queue *Queue,
 		queue:       queue,
 		config:      config,
 		waitGroup:   sync.WaitGroup{},
-		workChannel: make(chan Video, config.Workers),
+		workChannel: make(chan Video),
 		workers:     nil,
 	}
 
