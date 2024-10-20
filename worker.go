@@ -19,6 +19,7 @@ type Worker struct {
 	poolWorker *PoolWorker
 
 	// Progress
+	Active    bool
 	Step      int
 	TotalStep int
 	Progress  float64
@@ -34,6 +35,7 @@ func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker) *Worker {
 func (w *Worker) start() {
 	for video := range w.poolWorker.workChannel {
 		w.poolWorker.waitGroup.Add(1)
+		w.Active = true
 		err := w.doWork(&video)
 		if w.poolWorker.ctx.Err() != nil {
 			w.logger.Debug("Ctx error is: ", w.poolWorker.ctx.Err())
@@ -41,6 +43,7 @@ func (w *Worker) start() {
 				w.logger.Debug("Ctx was canceled")
 
 				// End function so call return
+				w.Active = false
 				w.poolWorker.waitGroup.Done()
 				return
 			}
@@ -54,6 +57,7 @@ func (w *Worker) start() {
 			// Won't show anywhere
 		}
 
+		w.Active = false
 		w.poolWorker.waitGroup.Done()
 	}
 }

@@ -63,12 +63,28 @@ func (p *PoolWorker) RunDispatcherBlocking() {
 		case <-p.ctx.Done():
 			return
 		default:
-			video, ok := p.queue.Dequeue()
-			if ok {
-				p.workChannel <- video
+			// TODO: make this better
+			if len(p.workChannel) != p.config.Workers {
+				video, ok := p.queue.Dequeue()
+				if ok {
+					p.workChannel <- video
+				} else {
+					time.Sleep(100 * time.Millisecond)
+				}
 			} else {
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
 	}
+}
+
+func (p *PoolWorker) GetActiveWorkerCount() int {
+	count := 0
+	for _, worker := range p.workers {
+		if worker.Active {
+			count++
+		}
+	}
+
+	return count
 }
