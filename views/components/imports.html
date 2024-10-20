@@ -1,0 +1,10 @@
+<script>
+    Handlebars.registerHelper('ternary', function (condition, trueValue, falseValue) {
+        return condition ? trueValue : falseValue;
+    });
+
+    Handlebars.registerHelper('countActiveWorkers', function (workers) {
+        console.log(workers);
+        return workers.filter(w => w.active).length;
+    });
+</script>

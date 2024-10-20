@@ -4,119 +4,17 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="htmx.min.js"></script>
-    <script src="client-side-templates.js"></script>
-    <script src="handlebars.min-v4.7.8.js"></script>
+    <script src="libs/htmx.min.js"></script>
+    <script src="libs/client-side-templates.js"></script>
+    <script src="libs/handlebars.min-v4.7.8.js"></script>
+    <link rel="stylesheet" href="style.css">
     <title>Interpolar - Queue</title>
-    <style>
-        /* Basic styles */
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            display: flex;
-        }
-
-        /* Sidebar (reuse from Dashboard) */
-        .sidebar {
-            width: 200px;
-            background-color: #2c3e50;
-            min-height: 100vh;
-            color: #ecf0f1;
-            position: fixed;
-        }
-
-        .sidebar h2 {
-            text-align: center;
-            padding: 1rem 0;
-            background-color: #1a252f;
-            margin: 0;
-        }
-
-        .sidebar ul {
-            list-style: none;
-            padding: 1rem;
-        }
-
-        .sidebar ul li {
-            margin: 1rem 0;
-        }
-
-        .sidebar ul li a {
-            color: #ecf0f1;
-            text-decoration: none;
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: 200px;
-            padding: 2rem;
-        }
-
-        .main-content h1 {
-            margin-bottom: 1rem;
-        }
-
-        /* Table Styles */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        table th,
-        table td {
-            padding: 1rem;
-            border-bottom: 1px solid #ddd;
-            text-align: left;
-        }
-
-        table th {
-            background-color: #f4f4f4;
-        }
-
-        /* Buttons */
-        .btn {
-            padding: 0.5rem 1rem;
-            background-color: #3498db;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 5px;
-            margin-right: 0.5rem;
-        }
-
-        .status {
-            padding: 0.3rem 0.5rem;
-            border-radius: 3px;
-            color: #fff;
-            font-size: 0.9rem;
-        }
-
-        .status.processing {
-            background-color: #27ae60;
-        }
-
-        .status.queued {
-            background-color: #f1c40f;
-        }
-
-        .status.completed {
-            background-color: #2c3e50;
-        }
-    </style>
 </head>
 
 <body>
-    <!-- Sidebar Navigation -->
-    <div class="sidebar">
-        <h2>Video Processor</h2>
-        <ul>
-            <li><a href="index.html">Dashboard</a></li>
-            <li><a href="#">Video Queue</a></li>
-            <li><a href="#">Workers</a></li>
-            <li><a href="#">Settings</a></li>
-        </ul>
-    </div>
-    <!-- Main Content -->
-    <div class="main-content">
+    <div hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div hx-get="components/sidebar.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div class="queue-main-content">
         <h1>Queue Management</h1>
         <!-- Toolbar -->
         <!-- <div class="toolbar" style="margin-bottom: 1rem;">
@@ -131,7 +29,7 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody class="card" hx-get="/api/queue" hx-trigger="load" hx-ext="client-side-templates"
+            <tbody hx-get="/api/queue" hx-trigger="load" hx-ext="client-side-templates"
                 handlebars-template="video-table">
             </tbody>
         </table>
