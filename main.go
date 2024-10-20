@@ -82,9 +82,12 @@ func main() {
 	api := r.Group("/api")
 	{
 		api.GET("/ping", ping)
+
 		api.GET("/queue", listVideoQueue)
 		api.POST("/queue", addVideoToQueue)
 		api.DELETE("/queue/:id", delVideoToQueue)
+
+		api.GET("/workers", listWorkers)
 	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -201,4 +204,9 @@ func delVideoToQueue(c *gin.Context) {
 func listVideoQueue(c *gin.Context) {
 	log.Debug("Getting video queue")
 	c.JSON(200, gQueue.GetVideos())
+}
+
+func listWorkers(c *gin.Context) {
+	log.Debug("Getting worker list")
+	c.JSON(200, &poolWorker.workers)
 }

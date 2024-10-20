@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="htmx.min.js"></script>
     <script src="client-side-templates.js"></script>
-    <script src="mustache.js"></script>
+    <script src="handlebars.min-v4.7.8.js"></script>
     <script src="ws.js"></script>
     <title>Interpolar</title>
     <style>
@@ -90,6 +90,12 @@
             border-radius: 5px;
         }
     </style>
+    <script>
+        Handlebars.registerHelper('countActiveWorkers', function (workers) {
+            console.log(workers);
+            return workers.filter(w => w.active).length;
+        });
+    </script>
 </head>
 
 <body>
@@ -109,19 +115,24 @@
         <!-- Summary Cards -->
         <div class="cards">
             <div class="card" hx-get="/api/queue" hx-trigger="load" hx-ext="client-side-templates"
-                mustache-template="video-count-template" hx-target="#video-count">
+                handlebars-template="video-count-template" hx-target="#video-count">
                 <h3>Videos in Queue</h3>
                 <p id="video-count">...loading</p>
             </div>
 
             <template id="video-count-template">
-                Total Videos: {{length}}
+                {{this.length}}
             </template>
 
-            <div class="card">
+            <div class="card" hx-get="/api/workers" hx-trigger="load" hx-ext="client-side-templates"
+                handlebars-template="active-worker-count-template" hx-target="#active-workers">
                 <h3>Active Workers</h3>
-                <p>{ fmt.Sprint(activeWorkerCount) }</p>
+                <p id="active-workers">...loading</p>
             </div>
+
+            <template id="active-worker-count-template">
+                {{countActiveWorkers this}}
+            </template>
         </div>
         <!-- Recent Activity -->
         <div class="activity">

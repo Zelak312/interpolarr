@@ -14,15 +14,14 @@ type Worker struct {
 	// TODO: for context, always maybe add
 	// a time constrained context to make sure
 	// nothing is undefinitely running and blocking
-	id         int
 	logger     *logrus.Entry
 	poolWorker *PoolWorker
 
-	// Progress
-	Active    bool
-	Step      int
-	TotalStep int
-	Progress  float64
+	ID        int     `json:"id"`
+	Active    bool    `json:"active"`
+	Step      int     `json:"step"`
+	TotalStep int     `json:"totalStep"`
+	Progress  float64 `json:"progress"`
 }
 
 func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker) *Worker {
@@ -210,7 +209,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		return "", ProcessVideoOutput{outputFileAlreadyExist: true}
 	}
 
-	processFolderWorker := path.Join(w.poolWorker.config.ProcessFolder, fmt.Sprintf("worker_%d", w.id))
+	processFolderWorker := path.Join(w.poolWorker.config.ProcessFolder, fmt.Sprintf("worker_%d", w.ID))
 	if _, err := os.Stat(processFolderWorker); err == nil {
 		err := os.RemoveAll(processFolderWorker)
 		if err != nil {
