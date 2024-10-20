@@ -4,6 +4,10 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="htmx.min.js"></script>
+    <script src="client-side-templates.js"></script>
+    <script src="handlebars.min-v4.7.8.js"></script>
+    <script src="ws.js"></script>
     <title>Interpolar - Queue</title>
     <style>
         /* Basic styles */
@@ -106,62 +110,44 @@
     <div class="sidebar">
         <h2>Video Processor</h2>
         <ul>
-            <li><a href="#">Dashboard</a></li>
+            <li><a href="index.html">Dashboard</a></li>
             <li><a href="#">Video Queue</a></li>
             <li><a href="#">Workers</a></li>
-            <li><a href="#">Events</a></li>
             <li><a href="#">Settings</a></li>
-            <li><a href="#">Help</a></li>
         </ul>
     </div>
     <!-- Main Content -->
     <div class="main-content">
-        <h1>Video Queue Management</h1>
+        <h1>Queue Management</h1>
         <!-- Toolbar -->
-        <div class="toolbar" style="margin-bottom: 1rem;">
+        <!-- <div class="toolbar" style="margin-bottom: 1rem;">
             <a href="#" class="btn">Add Video</a>
             <input type="text" placeholder="Search..." style="padding: 0.5rem;" />
-        </div>
+        </div> -->
         <!-- Video Table -->
         <table>
             <thead>
                 <tr>
                     <th>Video Name</th>
-                    <th>Status</th>
-                    <th>Progress</th>
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td>Sample1.mp4</td>
-                    <td><span class="status processing">Processing</span></td>
-                    <td>75%</td>
-                    <td>
-                        <a href="#" class="btn">Pause</a>
-                        <a href="#" class="btn">Remove</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Sample2.mp4</td>
-                    <td><span class="status queued">Queued</span></td>
-                    <td>0%</td>
-                    <td>
-                        <a href="#" class="btn">Prioritize</a>
-                        <a href="#" class="btn">Remove</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Sample3.mp4</td>
-                    <td><span class="status completed">Completed</span></td>
-                    <td>100%</td>
-                    <td>
-                        <a href="#" class="btn">View</a>
-                        <a href="#" class="btn">Delete</a>
-                    </td>
-                </tr>
+            <tbody class="card" hx-get="/api/queue" hx-trigger="load" hx-ext="client-side-templates"
+                handlebars-template="video-table">
             </tbody>
         </table>
+
+        <template id="video-table">
+            {{#each this}}
+            <tr>
+                <td>{{this.path}}</td>
+                <td>
+                    <a href="#" class="btn">Pause</a>
+                    <a href="#" class="btn">Remove</a>
+                </td>
+            </tr>
+            {{/each}}
+        </template>
     </div>
 </body>
 
