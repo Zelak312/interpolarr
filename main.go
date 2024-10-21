@@ -26,6 +26,7 @@ type Video struct {
 
 var gQueue Queue
 var poolWorker *PoolWorker
+var hub *Hub
 var sqlite Sqlite
 
 var log *logrus.Entry
@@ -72,6 +73,12 @@ func main() {
 		log.Panic("Error creating the queue: ", err)
 	}
 
+	hub, err = NewHub()
+	if err != nil {
+		log.Panic("error creating the hub: ", err)
+	}
+
+	go hub.Run()
 	r := gin.Default()
 	r.Use(LoggerMiddleware())
 
@@ -88,6 +95,10 @@ func main() {
 		api.DELETE("/queue/:id", delVideoToQueue)
 
 		api.GET("/workers", listWorkers)
+
+		api.GET("/ws", func(c *gin.Context) {
+			hub.HandleConnections(c)
+		})
 	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())

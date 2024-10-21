@@ -5,6 +5,7 @@ go 1.21.5
 require (
 	github.com/gin-contrib/static v1.1.2
 	github.com/gin-gonic/gin v1.9.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kjk/common v0.0.0-20240614095155-da5732d4417d
 	github.com/sirupsen/logrus v1.9.3
