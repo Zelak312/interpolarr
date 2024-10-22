@@ -18,11 +18,10 @@ type Worker struct {
 	poolWorker *PoolWorker
 	hub        *Hub
 
-	ID        int     `json:"id"`
-	Active    bool    `json:"active"`
-	Step      int     `json:"step"`
-	TotalStep int     `json:"totalStep"`
-	Progress  float64 `json:"progress"`
+	ID       int     `json:"id"`
+	Active   bool    `json:"active"`
+	Step     string  `json:"step"`
+	Progress float64 `json:"progress"`
 }
 
 func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *Worker {
@@ -227,9 +226,9 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	progressChan := make(chan float64)
 	defer close(progressChan)
 	go w.updateProgress(progressChan)
-	progressChan <- 0
 
 	w.logger.Info("Getting video fps and framecount")
+	w.updateStep("Getting FPS Framecount")
 	videoInfo, output, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
@@ -263,13 +262,13 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	// }
 
 	w.logger.Info("Extracting audio from the video")
+	w.updateStep("Extracting audio")
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
 	output, err = ExtractAudio(w.poolWorker.ctx, video.Path, audioPath, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
-	progressChan <- 0
 	w.logger.Debug("Creating frames folder")
 	framesFolder := path.Join(processFolderWorker, "frames")
 	err = os.Mkdir(framesFolder, os.ModePerm)
@@ -278,12 +277,12 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	}
 
 	w.logger.Info("Extracting video frames")
+	w.updateStep("Extracting frames")
 	output, err = ExtractFrames(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions, video.Path, framesFolder, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
-	progressChan <- 0
 	w.logger.Debug("Creating interpolation frames folder")
 	interpolatedFolder := path.Join(processFolderWorker, "interpolated_frames")
 	err = os.Mkdir(interpolatedFolder, os.ModePerm)
@@ -291,8 +290,8 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	progressChan <- 0
 	w.logger.Info("Interpolating video")
+	w.updateStep("Interpolating frames")
 	output, err = InterpolateVideo(w.poolWorker.ctx, w.poolWorker.config.RifeBinary, framesFolder, interpolatedFolder,
 		w.poolWorker.config.ModelPath, targetFrameCount, w.poolWorker.config.RifeExtraArguments, progressChan)
 	if err != nil {
@@ -311,13 +310,13 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	}
 
 	w.logger.Infof("Reconstructing video with audio and interpolated frames to %g fps", w.poolWorker.config.TargetFPS)
+	w.updateStep("Reconstructing video")
 	output, err = ConstructVideoToFPS(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions,
 		interpolatedFolder, audioPath, video.OutputPath, w.poolWorker.config.TargetFPS, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
-	progressChan <- 0
 	w.logger.Debug("Removing worker folder")
 	err = os.RemoveAll(processFolderWorker)
 	if err != nil {
@@ -327,19 +326,29 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	return "", ProcessVideoOutput{}
 }
 
+func (w *Worker) updateStep(step string) {
+	w.Step = step
+	w.Progress = 0
+	w.sendUpdate()
+}
+
 func (w *Worker) updateProgress(progressChan <-chan float64) {
 	for progress := range progressChan {
 		w.Progress = progress
-		packet := WsWorkerProgress{
-			WsBaseMessage: WsBaseMessage{
-				Type: "worker_progress",
-			},
-			WorkerID: w.ID,
-			Step:     "",
-			Progress: progress,
-		}
-
-		w.hub.BroadcastMessage(packet)
+		w.sendUpdate()
 		// w.logger.Info("Worker Update Progress:", progress)
 	}
+}
+
+func (w *Worker) sendUpdate() {
+	packet := WsWorkerProgress{
+		WsBaseMessage: WsBaseMessage{
+			Type: "worker_progress",
+		},
+		WorkerID: w.ID,
+		Step:     w.Step,
+		Progress: w.Progress,
+	}
+
+	w.hub.BroadcastMessage(packet)
 }
