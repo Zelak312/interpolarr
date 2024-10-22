@@ -6,12 +6,14 @@ import (
 
 type Queue struct {
 	videos []Video
+	hub    *Hub
 	lock   sync.Mutex
 }
 
-func NewQueue(videos []Video) (Queue, error) {
+func NewQueue(videos []Video, hub *Hub) (Queue, error) {
 	return Queue{
 		videos: videos,
+		hub:    hub,
 	}, nil
 }
 
@@ -27,6 +29,7 @@ func (q *Queue) Enqueue(item Video) {
 	defer q.lock.Unlock()
 
 	q.videos = append(q.videos, item)
+	q.sendUpdate()
 }
 
 func (q *Queue) Peek() (Video, bool) {
@@ -50,6 +53,7 @@ func (q *Queue) Dequeue() (Video, bool) {
 
 	video := q.videos[0]
 	q.videos = q.videos[1:]
+	q.sendUpdate()
 	return video, true
 }
 
@@ -63,6 +67,7 @@ func (q *Queue) RemoveByID(id int64) (Video, bool) {
 	}
 
 	q.videos = append(q.videos[:index], q.videos[index+1:]...)
+	q.sendUpdate()
 	return video, true
 }
 
@@ -91,4 +96,15 @@ func (q *Queue) findByIDInternal(id int64) (Video, int) {
 	}
 
 	return q.videos[index], index
+}
+
+func (q *Queue) sendUpdate() {
+	packet := WsQeueuUpdate{
+		WsBaseMessage: WsBaseMessage{
+			Type: "queue_update",
+		},
+		Videos: q.videos,
+	}
+
+	q.hub.BroadcastMessage(packet)
 }

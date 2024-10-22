@@ -68,17 +68,17 @@ func main() {
 		log.Panic("Error getting videos: ", err)
 	}
 
-	gQueue, err = NewQueue(videos)
-	if err != nil {
-		log.Panic("Error creating the queue: ", err)
-	}
-
 	hub, err = NewHub()
 	if err != nil {
 		log.Panic("error creating the hub: ", err)
 	}
 
 	go hub.Run()
+	gQueue, err = NewQueue(videos, hub)
+	if err != nil {
+		log.Panic("Error creating the queue: ", err)
+	}
+
 	r := gin.Default()
 	r.Use(LoggerMiddleware())
 

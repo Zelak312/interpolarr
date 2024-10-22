@@ -22,6 +22,8 @@ type Worker struct {
 	Active   bool    `json:"active"`
 	Step     string  `json:"step"`
 	Progress float64 `json:"progress"`
+
+	Video *Video `json:"video"`
 }
 
 func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *Worker {
@@ -36,7 +38,9 @@ func (w *Worker) start() {
 	for video := range w.poolWorker.workChannel {
 		w.poolWorker.waitGroup.Add(1)
 		w.Active = true
+		w.Video = &video
 		err := w.doWork(&video)
+		w.Video = nil
 		if w.poolWorker.ctx.Err() != nil {
 			w.logger.Debug("Ctx error is: ", w.poolWorker.ctx.Err())
 			if w.poolWorker.ctx.Err() == context.Canceled {
@@ -336,7 +340,6 @@ func (w *Worker) updateProgress(progressChan <-chan float64) {
 	for progress := range progressChan {
 		w.Progress = progress
 		w.sendUpdate()
-		// w.logger.Info("Worker Update Progress:", progress)
 	}
 }
 
@@ -348,6 +351,7 @@ func (w *Worker) sendUpdate() {
 		WorkerID: w.ID,
 		Step:     w.Step,
 		Progress: w.Progress,
+		Video:    w.Video,
 	}
 
 	w.hub.BroadcastMessage(packet)
