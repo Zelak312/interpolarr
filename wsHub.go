@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -63,13 +62,12 @@ func (h *Hub) Run() {
 			for client := range h.clients {
 				if err := client.conn.WriteJSON(message); err != nil {
 					h.logger.Debugf("Error sending message to client %s: %v", client.conn.RemoteAddr(), err)
-					h.unregister <- client
+					go func(client *Client) { // Run the unregister in a separate goroutine (needed to not block)
+						h.unregister <- client
+					}(client)
 				}
 			}
 			h.Unlock()
-
-		default:
-			time.Sleep(100 * time.Millisecond)
 		}
 	}
 }
@@ -86,4 +84,8 @@ func (h *Hub) HandleConnections(c *gin.Context) {
 	h.register <- client
 
 	go client.pingClient()
+}
+
+func (h *Hub) BroadcastMessage(packet interface{}) {
+	h.broadcast <- packet
 }

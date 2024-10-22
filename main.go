@@ -103,7 +103,7 @@ func main() {
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
-	poolWorker = NewPoolWorker(ctx, &gQueue, &config)
+	poolWorker = NewPoolWorker(ctx, &gQueue, &config, hub)
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {

@@ -16,6 +16,7 @@ type Worker struct {
 	// nothing is undefinitely running and blocking
 	logger     *logrus.Entry
 	poolWorker *PoolWorker
+	hub        *Hub
 
 	ID        int     `json:"id"`
 	Active    bool    `json:"active"`
@@ -24,10 +25,11 @@ type Worker struct {
 	Progress  float64 `json:"progress"`
 }
 
-func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker) *Worker {
+func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *Worker {
 	return &Worker{
 		logger:     logger,
 		poolWorker: poolWoker,
+		hub:        hub,
 	}
 }
 
@@ -328,6 +330,16 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 func (w *Worker) updateProgress(progressChan <-chan float64) {
 	for progress := range progressChan {
 		w.Progress = progress
+		packet := WsWorkerProgress{
+			WsBaseMessage: WsBaseMessage{
+				Type: "worker_progress",
+			},
+			WorkerID: w.ID,
+			Step:     "",
+			Progress: progress,
+		}
+
+		w.hub.BroadcastMessage(packet)
 		// w.logger.Info("Worker Update Progress:", progress)
 	}
 }

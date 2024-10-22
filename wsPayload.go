@@ -6,7 +6,7 @@ type WsBaseMessage struct {
 
 type WsWorkerProgress struct {
 	WsBaseMessage
-	WorkerID string  `json:"workerId"`
+	WorkerID int     `json:"workerId"`
 	Step     string  `json:"step"`
 	Progress float64 `json:"progress"`
 }

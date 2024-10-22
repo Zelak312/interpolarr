@@ -28,7 +28,7 @@ type ProcessVideoOutput struct {
 }
 
 func NewPoolWorker(ctx context.Context, queue *Queue,
-	config *Config) *PoolWorker {
+	config *Config, hub *Hub) *PoolWorker {
 	poolWorker := PoolWorker{
 		ctx:         ctx,
 		queue:       queue,
@@ -46,7 +46,7 @@ func NewPoolWorker(ctx context.Context, queue *Queue,
 			log.Panicf("Couldn't create logger for worker: %d", i)
 		}
 
-		workers[i] = NewWorker(i, logger, &poolWorker)
+		workers[i] = NewWorker(i, logger, &poolWorker, hub)
 	}
 
 	poolWorker.workers = workers
@@ -76,15 +76,4 @@ func (p *PoolWorker) RunDispatcherBlocking() {
 			}
 		}
 	}
-}
-
-func (p *PoolWorker) GetActiveWorkerCount() int {
-	count := 0
-	for _, worker := range p.workers {
-		if worker.Active {
-			count++
-		}
-	}
-
-	return count
 }
