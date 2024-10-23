@@ -7,4 +7,40 @@
         console.log(workers);
         return workers.filter(w => w.active).length;
     });
+
+    class WS {
+        constructor(reconnectTime = 30) {
+            const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+            const wsUrl = protocol + window.location.host + "/api/ws";
+            this.url = wsUrl;
+            this.reconnectTime = reconnectTime * 1000;
+        }
+
+        connect() {
+            this.connected = false;
+            this.conn = new WebSocket(this.url);
+            this.conn.onmessage = this.internalOnMessage.bind(this);
+            this.conn.onerror = this.internalOnError.bind(this);
+
+            this.internalOnConnect = () => {
+                this.connected = true;
+            };
+
+            this.internalOnClose = () => {
+                this.connected = false;
+                setTimeout(this.reconnectTime, this.connect.bind(this));
+            };
+        }
+
+        internalOnMessage(...args) {
+            if (this.onmessage) this.onmessage(...args);
+        }
+
+        internalOnError(...args) {
+            if (this.onerror) this.onerror(...args);
+        }
+    }
+
+    if (document.onCustomLoad) document.onCustomLoad();
+    document.customLoaded = true;
 </script>

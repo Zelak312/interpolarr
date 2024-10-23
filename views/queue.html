@@ -7,13 +7,39 @@
     <script src="libs/htmx.min.js"></script>
     <script src="libs/client-side-templates.js"></script>
     <script src="libs/handlebars.min-v4.7.8.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <script src="libs/jquery-3.7.1.slim.min.js""></script>
+    <link rel=" stylesheet" href="style.css">
     <title>Interpolar - Queue</title>
 </head>
 
 <body>
     <div hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
     <div hx-get="components/sidebar.html" hx-trigger="load" hx-swap="outerHTML"></div>
+
+    <script defer>
+        document.onCustomLoad = () => {
+            const templateSource = $('#video-table-template').html();
+            const template = Handlebars.compile(templateSource);
+            const ws = new WS();
+            ws.connect();
+
+            ws.onmessage = msg => {
+                try {
+                    const packet = JSON.parse(msg.data);
+                    console.log(packet);
+                    if (packet.type == "queue_update") {
+                        const html = template(packet.videos);
+                        console.log(html);
+                        $('#video-table').html(html);
+                    }
+                } catch (e) {
+                    console.log(e);
+                }
+            };
+        }
+
+        if (document.customLoaded) document.onCustomLoad();
+    </script>
     <div class="queue-main-content">
         <h1>Queue Management</h1>
         <!-- Toolbar -->
@@ -22,7 +48,7 @@
             <input type="text" placeholder="Search..." style="padding: 0.5rem;" />
         </div> -->
         <!-- Video Table -->
-        <table>
+        <table id="video-table">
             <thead>
                 <tr>
                     <th>Video Name</th>
@@ -30,22 +56,22 @@
                 </tr>
             </thead>
             <tbody hx-get="/api/queue" hx-trigger="load" hx-ext="client-side-templates"
-                handlebars-template="video-table">
+                handlebars-template="video-table-template">
             </tbody>
         </table>
 
-        <template id="video-table">
+        <template id="video-table-template">
             {{#each this}}
-            <tr>
+            <tr id="video-table-{{this.id}}">
                 <td>{{this.path}}</td>
-                <td>
+                <!-- <td>
                     <a href="#" class="btn">Pause</a>
                     <a href="#" class="btn">Remove</a>
-                </td>
+                </td> -->
             </tr>
             {{/each}}
         </template>
     </div>
-</body>
+    </body>
 
 </html>
