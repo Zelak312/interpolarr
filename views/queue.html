@@ -7,8 +7,8 @@
     <script src="libs/htmx.min.js"></script>
     <script src="libs/client-side-templates.js"></script>
     <script src="libs/handlebars.min-v4.7.8.js"></script>
-    <script src="libs/jquery-3.7.1.slim.min.js""></script>
-    <link rel=" stylesheet" href="style.css">
+    <script src="libs/jquery-3.7.1.slim.min.js"></script>
+    <link rel="stylesheet" href="style.css">
     <title>Interpolar - Queue</title>
 </head>
 
@@ -29,7 +29,6 @@
                     console.log(packet);
                     if (packet.type == "queue_update") {
                         const html = template(packet.videos);
-                        console.log(html);
                         $('#video-table').html(html);
                     }
                 } catch (e) {
@@ -72,6 +71,6 @@
             {{/each}}
         </template>
     </div>
-    </body>
+</body>
 
 </html>

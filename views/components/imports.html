@@ -1,11 +1,22 @@
 <script>
+    function getFileName(path) {
+        return path.replace(/^.*[\\/]/, '');
+    }
+
     Handlebars.registerHelper('ternary', function (condition, trueValue, falseValue) {
         return condition ? trueValue : falseValue;
     });
 
     Handlebars.registerHelper('countActiveWorkers', function (workers) {
-        console.log(workers);
         return workers.filter(w => w.active).length;
+    });
+
+    Handlebars.registerHelper('getFileName', function (path) {
+        return getFileName(path);
+    });
+
+    Handlebars.registerHelper('makeProgress', function (progress) {
+        return Math.round(progress) + "%";
     });
 
     class WS {

@@ -36,8 +36,8 @@ func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *W
 
 func (w *Worker) start() {
 	for video := range w.poolWorker.workChannel {
-		w.poolWorker.waitGroup.Add(1)
 		w.Active = true
+		w.poolWorker.waitGroup.Add(1)
 		w.Video = &video
 		err := w.doWork(&video)
 		w.Video = nil
@@ -61,8 +61,9 @@ func (w *Worker) start() {
 			// Won't show anywhere
 		}
 
-		w.Active = false
 		w.poolWorker.waitGroup.Done()
+		w.Active = false
+		w.sendUpdate()
 	}
 }
 
@@ -348,10 +349,7 @@ func (w *Worker) sendUpdate() {
 		WsBaseMessage: WsBaseMessage{
 			Type: "worker_progress",
 		},
-		WorkerID: w.ID,
-		Step:     w.Step,
-		Progress: w.Progress,
-		Video:    w.Video,
+		Worker: *w,
 	}
 
 	w.hub.BroadcastMessage(packet)
