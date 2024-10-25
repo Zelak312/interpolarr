@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 type Command struct {
@@ -49,13 +50,18 @@ func (c *Command) CombinedOutput() (string, error) {
 		return "", err
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	multiWriterStdout := io.MultiWriter(&c.output, c.stdoutPipeWriter)
 	multiWriterStderr := io.MultiWriter(&c.output, c.stderrPipeWriter)
 	go func() {
+		defer wg.Done()
 		io.Copy(multiWriterStdout, stdoutPipe)
 		c.stdoutPipeWriter.Close()
 	}()
 	go func() {
+		defer wg.Done()
 		io.Copy(multiWriterStderr, stderrPipe)
 		c.stderrPipeWriter.Close()
 	}()
@@ -63,5 +69,6 @@ func (c *Command) CombinedOutput() (string, error) {
 	err = c.cmd.Run()
 	c.stdoutPipe.Close()
 	c.stderrPipe.Close()
+	wg.Wait()
 	return c.output.String(), err
 }

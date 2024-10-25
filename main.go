@@ -219,5 +219,5 @@ func listVideoQueue(c *gin.Context) {
 
 func listWorkers(c *gin.Context) {
 	log.Debug("Getting worker list")
-	c.JSON(200, &poolWorker.workers)
+	c.JSON(200, poolWorker.GetWorkerInfos())
 }

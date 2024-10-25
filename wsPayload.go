@@ -6,7 +6,7 @@ type WsBaseMessage struct {
 
 type WsWorkerProgress struct {
 	WsBaseMessage
-	Worker
+	WorkerInfo
 }
 
 type WsQeueuUpdate struct {

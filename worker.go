@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
@@ -17,13 +18,17 @@ type Worker struct {
 	logger     *logrus.Entry
 	poolWorker *PoolWorker
 	hub        *Hub
+	sync.RWMutex
 
+	workerInfo WorkerInfo
+}
+
+type WorkerInfo struct {
 	ID       int     `json:"id"`
 	Active   bool    `json:"active"`
 	Step     string  `json:"step"`
 	Progress float64 `json:"progress"`
-
-	Video *Video `json:"video"`
+	Video    *Video  `json:"video"`
 }
 
 func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *Worker {
@@ -36,18 +41,18 @@ func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *W
 
 func (w *Worker) start() {
 	for video := range w.poolWorker.workChannel {
-		w.Active = true
+		w.workerInfo.Active = true
 		w.poolWorker.waitGroup.Add(1)
-		w.Video = &video
+		w.workerInfo.Video = &video
 		err := w.doWork(&video)
-		w.Video = nil
+		w.workerInfo.Video = nil
 		if w.poolWorker.ctx.Err() != nil {
 			w.logger.Debug("Ctx error is: ", w.poolWorker.ctx.Err())
 			if w.poolWorker.ctx.Err() == context.Canceled {
 				w.logger.Debug("Ctx was canceled")
 
 				// End function so call return
-				w.Active = false
+				w.workerInfo.Active = false
 				w.poolWorker.waitGroup.Done()
 				return
 			}
@@ -62,7 +67,7 @@ func (w *Worker) start() {
 		}
 
 		w.poolWorker.waitGroup.Done()
-		w.Active = false
+		w.workerInfo.Active = false
 		w.sendUpdate()
 	}
 }
@@ -215,7 +220,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		return "", ProcessVideoOutput{outputFileAlreadyExist: true}
 	}
 
-	processFolderWorker := path.Join(w.poolWorker.config.ProcessFolder, fmt.Sprintf("worker_%d", w.ID))
+	processFolderWorker := path.Join(w.poolWorker.config.ProcessFolder, fmt.Sprintf("worker_%d", w.workerInfo.ID))
 	if _, err := os.Stat(processFolderWorker); err == nil {
 		err := os.RemoveAll(processFolderWorker)
 		if err != nil {
@@ -332,25 +337,41 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 }
 
 func (w *Worker) updateStep(step string) {
-	w.Step = step
-	w.Progress = 0
+	w.Lock()
+	w.workerInfo.Step = step
+	w.workerInfo.Progress = 0
+
+	w.Unlock()
 	w.sendUpdate()
 }
 
 func (w *Worker) updateProgress(progressChan <-chan float64) {
 	for progress := range progressChan {
-		w.Progress = progress
+		w.Lock()
+		w.workerInfo.Progress = progress
+
+		w.Unlock()
 		w.sendUpdate()
 	}
 }
 
 func (w *Worker) sendUpdate() {
+	w.Lock()
+	defer w.Unlock()
+
 	packet := WsWorkerProgress{
 		WsBaseMessage: WsBaseMessage{
 			Type: "worker_progress",
 		},
-		Worker: *w,
+		WorkerInfo: w.workerInfo,
 	}
 
 	w.hub.BroadcastMessage(packet)
+}
+
+func (w *Worker) GetInfo() WorkerInfo {
+	w.RLock() // Shared lock for reading
+	defer w.RUnlock()
+
+	return w.workerInfo
 }

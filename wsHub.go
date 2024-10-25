@@ -3,10 +3,16 @@ package main
 import (
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	pongWait   = 30 * time.Second    // Time allowed to read the next pong message from the peer
+	pingPeriod = (pongWait * 9) / 10 // Ping period must be less than pongWait
 )
 
 var upgrader = websocket.Upgrader{
@@ -17,10 +23,10 @@ var upgrader = websocket.Upgrader{
 
 type Hub struct {
 	logger     *logrus.Entry
-	clients    map[*Client]bool
+	clients    map[*websocket.Conn]bool
 	broadcast  chan interface{}
-	register   chan *Client
-	unregister chan *Client
+	register   chan *websocket.Conn
+	unregister chan *websocket.Conn
 	sync.Mutex
 }
 
@@ -32,39 +38,53 @@ func NewHub() (*Hub, error) {
 
 	return &Hub{
 		logger:     logger,
-		clients:    make(map[*Client]bool),
+		clients:    make(map[*websocket.Conn]bool),
 		broadcast:  make(chan interface{}),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		register:   make(chan *websocket.Conn),
+		unregister: make(chan *websocket.Conn),
 	}, err
 }
 
 func (h *Hub) Run() {
+	ticker := time.NewTicker(pingPeriod)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case client := <-h.register:
+		case conn := <-h.register:
 			h.Lock()
-			h.clients[client] = true
+			h.clients[conn] = true
 			h.Unlock()
-			h.logger.Debug("Client registered:", client.conn.RemoteAddr())
+			h.logger.Debug("Client registered:", conn.RemoteAddr())
 
-		case client := <-h.unregister:
+		case conn := <-h.unregister:
 			h.Lock()
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
-				client.conn.Close()
-				h.logger.Debug("Client unregistered:", client.conn.RemoteAddr())
+			if _, ok := h.clients[conn]; ok {
+				delete(h.clients, conn)
+				conn.Close()
+				h.logger.Debug("Client unregistered:", conn.RemoteAddr())
 			}
 			h.Unlock()
 
 		case message := <-h.broadcast:
 			h.Lock()
-			for client := range h.clients {
-				if err := client.conn.WriteJSON(message); err != nil {
-					h.logger.Debugf("Error sending message to client %s: %v", client.conn.RemoteAddr(), err)
-					go func(client *Client) { // Run the unregister in a separate goroutine (needed to not block)
-						h.unregister <- client
-					}(client)
+			for conn := range h.clients {
+				if err := conn.WriteJSON(message); err != nil {
+					h.logger.Debugf("Error sending message to client %s: %v", conn.RemoteAddr(), err)
+					go func(conn *websocket.Conn) { // Run the unregister in a separate goroutine (needed to not block)
+						h.unregister <- conn
+					}(conn)
+				}
+			}
+			h.Unlock()
+
+		case <-ticker.C:
+			h.Lock()
+			for conn := range h.clients {
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					go func(conn *websocket.Conn) { // Run the unregister in a separate goroutine (needed to not block)
+						h.unregister <- conn
+					}(conn)
 				}
 			}
 			h.Unlock()
@@ -80,10 +100,13 @@ func (h *Hub) HandleConnections(c *gin.Context) {
 		return
 	}
 
-	client := NewClient(h, conn)
-	h.register <- client
+	conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
 
-	go client.pingClient()
+	h.register <- conn
 }
 
 func (h *Hub) BroadcastMessage(packet interface{}) {

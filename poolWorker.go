@@ -77,3 +77,12 @@ func (p *PoolWorker) RunDispatcherBlocking() {
 		}
 	}
 }
+
+func (p *PoolWorker) GetWorkerInfos() []WorkerInfo {
+	var info []WorkerInfo
+	for _, worker := range p.workers {
+		info = append(info, worker.GetInfo())
+	}
+
+	return info
+}
