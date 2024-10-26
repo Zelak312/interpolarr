@@ -25,7 +25,6 @@
             ws.onmessage = msg => {
                 try {
                     const packet = JSON.parse(msg.data);
-                    console.log(packet);
                     if (packet.type == "worker_progress") {
                         const workerDiv = $("#worker-card-" + packet.id);
 

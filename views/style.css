@@ -174,3 +174,29 @@ table th {
 .worker-status.inactive {
     color: #c0392b;
 }
+
+/* Error */
+.error-main-content {
+    margin-left: 200px;
+    padding: 2rem;
+}
+
+.error-video {
+    border: 1px solid #ddd;
+    margin: 10px;
+    padding: 10px;
+}
+
+.error-ffmpeg-output {
+    font-family: monospace;
+    white-space: pre-wrap;
+    background-color: #f5f5f5;
+    padding: 10px;
+    max-height: 100px;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.error-ffmpeg-output.expanded {
+    max-height: 1000px;
+}
