@@ -12,13 +12,13 @@
 </head>
 
 <body>
-    <div hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div id="imports" hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
     <div hx-get="components/sidebar.html" hx-trigger="load" hx-swap="outerHTML"></div>
     <div class="main-content">
         <h1>Dashboard</h1>
         <div class="cards">
-            <div class="card" hx-get="/api/queue" hx-trigger="load" hx-ext="client-side-templates"
-                handlebars-template="video-count-template" hx-target="#video-count">
+            <div class="card" hx-get="/api/queue" hx-trigger="htmx:afterRequest from:#imports"
+                hx-ext="client-side-templates" handlebars-template="video-count-template" hx-target="#video-count">
                 <h3>Videos in Queue</h3>
                 <p id="video-count">...loading</p>
             </div>
@@ -27,8 +27,9 @@
                 {{this.length}}
             </template>
 
-            <div class="card" hx-get="/api/workers" hx-trigger="load" hx-ext="client-side-templates"
-                handlebars-template="active-worker-count-template" hx-target="#active-workers">
+            <div class="card" hx-get="/api/workers" hx-trigger="htmx:afterRequest from:#imports"
+                hx-ext="client-side-templates" handlebars-template="active-worker-count-template"
+                hx-target="#active-workers">
                 <h3>Active Workers</h3>
                 <p id="active-workers">...loading</p>
             </div>

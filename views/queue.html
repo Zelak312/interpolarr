@@ -13,7 +13,7 @@
 </head>
 
 <body>
-    <div hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div id="imports" hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
     <div hx-get="components/sidebar.html" hx-trigger="load" hx-swap="outerHTML"></div>
 
     <script defer>
@@ -54,7 +54,7 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody hx-get="/api/queue" hx-trigger="load" hx-ext="client-side-templates"
+            <tbody hx-get="/api/queue" hx-trigger="htmx:afterRequest from:#imports" hx-ext="client-side-templates"
                 handlebars-template="video-table-template">
             </tbody>
         </table>

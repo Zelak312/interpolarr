@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="libs/htmx.min.js"></script>
+    <script src="libs/client-side-templates.js"></script>
+    <script src="libs/handlebars.min-v4.7.8.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <title>Interpolar</title>
+</head>
+
+<body>
+    <div hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div hx-get="components/sidebar.html" hx-trigger="load" hx-swap="outerHTML"></div>
+</body>
