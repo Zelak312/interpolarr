@@ -28,7 +28,6 @@ func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, string, er
 		"-show_entries", "stream=r_frame_rate,nb_read_frames", "-of", "csv=p=0", inputPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.WithField("inputPath", inputPath).Error("GetVideoInfo error: ", output)
 		return nil, output, err
 	}
 

@@ -41,19 +41,26 @@ func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *W
 
 func (w *Worker) start() {
 	for video := range w.poolWorker.workChannel {
+		w.Lock()
 		w.workerInfo.Active = true
 		w.poolWorker.waitGroup.Add(1)
 		w.workerInfo.Video = &video
+		w.Unlock()
 		err := w.doWork(&video)
+		w.Lock()
 		w.workerInfo.Video = nil
+		w.Unlock()
 		if w.poolWorker.ctx.Err() != nil {
 			w.logger.Debug("Ctx error is: ", w.poolWorker.ctx.Err())
 			if w.poolWorker.ctx.Err() == context.Canceled {
 				w.logger.Debug("Ctx was canceled")
 
 				// End function so call return
+				w.Lock()
 				w.workerInfo.Active = false
+				w.workerInfo.Video = nil
 				w.poolWorker.waitGroup.Done()
+				w.Unlock()
 				return
 			}
 		}
@@ -66,8 +73,10 @@ func (w *Worker) start() {
 			// Won't show anywhere
 		}
 
+		w.Lock()
 		w.poolWorker.waitGroup.Done()
 		w.workerInfo.Active = false
+		w.Unlock()
 		w.sendUpdate()
 	}
 }
