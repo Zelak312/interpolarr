@@ -23,33 +23,32 @@ func appendHWAccelEncodeArgs(args []string, config FfmpegOptions) []string {
 	return args
 }
 
-func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, error) {
+func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, string, error) {
 	cmd := NewCommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
 		"-show_entries", "stream=r_frame_rate,nb_read_frames", "-of", "csv=p=0", inputPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.WithField("inputPath", inputPath).Error("GetVideoInfo error: ", output)
-		return nil, err
+		return nil, output, err
 	}
 
 	parts := strings.Split(strings.TrimSpace(output), ",")
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("expected two parts in the output, got %d", len(parts))
+		return nil, "", fmt.Errorf("expected two parts in the output, got %d", len(parts))
 	}
 
 	// Parse the FPS using the parseFPS function.
 	fps, err := parseFPS(parts[0])
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Parse the frame count.
 	frameCount, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("invalid frame count: %v", err)
+		return nil, "", fmt.Errorf("invalid frame count: %v", err)
 	}
 
-	return &VideoInfo{Fps: fps, FrameCount: frameCount}, nil
+	return &VideoInfo{Fps: fps, FrameCount: frameCount}, "", nil
 }
 
 func ExtractAudio(ctx context.Context, inputPath string, outputPath string, progressChan chan<- float64) (string, error) {

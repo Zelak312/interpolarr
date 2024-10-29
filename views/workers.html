@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <script src="libs/htmx.min.js"></script>
+    <script src="libs/client-side-templates.js"></script>
+    <script src="libs/handlebars.min-v4.7.8.js"></script>
+    <script src="libs/jquery-3.7.1.slim.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <title>Interpolar - Workers</title>
+</head>
+
+<body>
+    <div id="imports" hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div hx-get="components/sidebar.html" hx-trigger="load" hx-swap="outerHTML"></div>
+
+    <script defer>
+        document.onCustomLoad = () => {
+            Handlebars.registerPartial("worker-card-template", $("#worker-card-template").html());
+
+            const ws = new WS();
+            ws.connect();
+
+            ws.onmessage = msg => {
+                try {
+                    const packet = JSON.parse(msg.data);
+                    if (packet.type == "worker_progress") {
+                        const workerDiv = $("#worker-card-" + packet.id);
+
+                        if (workerDiv.length == 0) return;
+                        const workerCardSource = $("#worker-card-template").html();
+                        const template = Handlebars.compile(workerCardSource);
+                        const html = template(packet);
+                        workerDiv.replaceWith(html);
+                    }
+                } catch (e) {
+                    console.log(e);
+                }
+            };
+        }
+
+        if (document.customLoaded) document.onCustomLoad();
+    </script>
+    <div class="worker-main-content">
+        <h1>Worker Management</h1>
+        <!-- <div style="margin-bottom: 1rem;">
+            <a href="#" class="btn">Add Worker</a>
+            <a href="#" class="btn">Start All</a>
+            <a href="#" class="btn">Stop All</a>
+        </div> -->
+        <div class="workers" hx-get="/api/workers" hx-trigger="htmx:afterRequest from:#imports"
+            hx-ext="client-side-templates" handlebars-template="worker-card-list-template">
+        </div>
+        <script id="worker-card-list-template" type="text/x-handlebars-template">
+            {{#each this}}
+            {{> worker-card-template}}
+            {{/each}}
+        </script>
+        <script id="worker-card-template" type="text/x-handlebars-template">
+            <div class="worker-card" id="worker-card-{{this.id}}">
+                <h3>Worker {{this.id}}</h3>
+                <p class="worker-status {{ternary this.active 'active' 'inactive' }}">Status: {{ternary this.active
+                    'active' 'inactive' }}</p>
+                {{#if this.active}}
+                <p>Current Video: {{getFileName this.video.path}}</p>
+                <p>Current Task: {{this.step}}</p>
+                <p>Progress: {{makeProgress this.progress}}</p>
+                {{/if}}
+            </div>
+        </script>
+    </div>
+</body>
+
+</html>

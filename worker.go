@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
@@ -14,46 +15,69 @@ type Worker struct {
 	// TODO: for context, always maybe add
 	// a time constrained context to make sure
 	// nothing is undefinitely running and blocking
-	id         int
 	logger     *logrus.Entry
 	poolWorker *PoolWorker
+	hub        *Hub
+	sync.RWMutex
 
-	// Progress
-	Step      int
-	TotalStep int
-	Progress  float64
+	workerInfo WorkerInfo
 }
 
-func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker) *Worker {
+type WorkerInfo struct {
+	ID       int     `json:"id"`
+	Active   bool    `json:"active"`
+	Step     string  `json:"step"`
+	Progress float64 `json:"progress"`
+	Video    *Video  `json:"video"`
+}
+
+func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *Worker {
 	return &Worker{
 		logger:     logger,
 		poolWorker: poolWoker,
+		hub:        hub,
 	}
 }
 
 func (w *Worker) start() {
 	for video := range w.poolWorker.workChannel {
+		w.Lock()
+		w.workerInfo.Active = true
 		w.poolWorker.waitGroup.Add(1)
+		w.workerInfo.Video = &video
+		w.Unlock()
 		err := w.doWork(&video)
+		w.Lock()
+		w.workerInfo.Video = nil
+		w.Unlock()
 		if w.poolWorker.ctx.Err() != nil {
 			w.logger.Debug("Ctx error is: ", w.poolWorker.ctx.Err())
 			if w.poolWorker.ctx.Err() == context.Canceled {
 				w.logger.Debug("Ctx was canceled")
 
 				// End function so call return
+				w.Lock()
+				w.workerInfo.Active = false
+				w.workerInfo.Video = nil
 				w.poolWorker.waitGroup.Done()
+				w.Unlock()
 				return
 			}
 		}
 
 		if err != nil {
+			w.logger.Warn(err)
 			// TODO: make a place where I can store warnings
 			// So I can store warning for each videos
 			// Because the otherwise the issues from runWorker (that doesn't retry)
 			// Won't show anywhere
 		}
 
+		w.Lock()
 		w.poolWorker.waitGroup.Done()
+		w.workerInfo.Active = false
+		w.Unlock()
+		w.sendUpdate()
 	}
 }
 
@@ -205,7 +229,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		return "", ProcessVideoOutput{outputFileAlreadyExist: true}
 	}
 
-	processFolderWorker := path.Join(w.poolWorker.config.ProcessFolder, fmt.Sprintf("worker_%d", w.id))
+	processFolderWorker := path.Join(w.poolWorker.config.ProcessFolder, fmt.Sprintf("worker_%d", w.workerInfo.ID))
 	if _, err := os.Stat(processFolderWorker); err == nil {
 		err := os.RemoveAll(processFolderWorker)
 		if err != nil {
@@ -221,12 +245,12 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	progressChan := make(chan float64)
 	defer close(progressChan)
 	go w.updateProgress(progressChan)
-	progressChan <- 0
 
 	w.logger.Info("Getting video fps and framecount")
-	videoInfo, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
+	w.updateStep("Getting FPS Framecount")
+	videoInfo, output, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
 	if err != nil {
-		return "", ProcessVideoOutput{err: err}
+		return output, ProcessVideoOutput{err: err}
 	}
 
 	w.logger.Info("fps: ", videoInfo.Fps)
@@ -257,13 +281,13 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	// }
 
 	w.logger.Info("Extracting audio from the video")
+	w.updateStep("Extracting audio")
 	audioPath := path.Join(processFolderWorker, "audio.m4a")
-	output, err := ExtractAudio(w.poolWorker.ctx, video.Path, audioPath, progressChan)
+	output, err = ExtractAudio(w.poolWorker.ctx, video.Path, audioPath, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
-	progressChan <- 0
 	w.logger.Debug("Creating frames folder")
 	framesFolder := path.Join(processFolderWorker, "frames")
 	err = os.Mkdir(framesFolder, os.ModePerm)
@@ -272,12 +296,12 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	}
 
 	w.logger.Info("Extracting video frames")
+	w.updateStep("Extracting frames")
 	output, err = ExtractFrames(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions, video.Path, framesFolder, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
-	progressChan <- 0
 	w.logger.Debug("Creating interpolation frames folder")
 	interpolatedFolder := path.Join(processFolderWorker, "interpolated_frames")
 	err = os.Mkdir(interpolatedFolder, os.ModePerm)
@@ -285,8 +309,8 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	progressChan <- 0
 	w.logger.Info("Interpolating video")
+	w.updateStep("Interpolating frames")
 	output, err = InterpolateVideo(w.poolWorker.ctx, w.poolWorker.config.RifeBinary, framesFolder, interpolatedFolder,
 		w.poolWorker.config.ModelPath, targetFrameCount, w.poolWorker.config.RifeExtraArguments, progressChan)
 	if err != nil {
@@ -305,13 +329,13 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	}
 
 	w.logger.Infof("Reconstructing video with audio and interpolated frames to %g fps", w.poolWorker.config.TargetFPS)
+	w.updateStep("Reconstructing video")
 	output, err = ConstructVideoToFPS(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions,
 		interpolatedFolder, audioPath, video.OutputPath, w.poolWorker.config.TargetFPS, progressChan)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
-	progressChan <- 0
 	w.logger.Debug("Removing worker folder")
 	err = os.RemoveAll(processFolderWorker)
 	if err != nil {
@@ -321,9 +345,42 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	return "", ProcessVideoOutput{}
 }
 
+func (w *Worker) updateStep(step string) {
+	w.Lock()
+	w.workerInfo.Step = step
+	w.workerInfo.Progress = 0
+
+	w.Unlock()
+	w.sendUpdate()
+}
+
 func (w *Worker) updateProgress(progressChan <-chan float64) {
 	for progress := range progressChan {
-		w.Progress = progress
-		w.logger.Info("Worker Update Progress:", progress)
+		w.Lock()
+		w.workerInfo.Progress = progress
+
+		w.Unlock()
+		w.sendUpdate()
 	}
+}
+
+func (w *Worker) sendUpdate() {
+	w.Lock()
+	defer w.Unlock()
+
+	packet := WsWorkerProgress{
+		WsBaseMessage: WsBaseMessage{
+			Type: "worker_progress",
+		},
+		WorkerInfo: w.workerInfo,
+	}
+
+	w.hub.BroadcastMessage(packet)
+}
+
+func (w *Worker) GetInfo() WorkerInfo {
+	w.RLock() // Shared lock for reading
+	defer w.RUnlock()
+
+	return w.workerInfo
 }

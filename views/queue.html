@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="libs/htmx.min.js"></script>
+    <script src="libs/client-side-templates.js"></script>
+    <script src="libs/handlebars.min-v4.7.8.js"></script>
+    <script src="libs/jquery-3.7.1.slim.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <title>Interpolar - Queue</title>
+</head>
+
+<body>
+    <div id="imports" hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div hx-get="components/sidebar.html" hx-trigger="load" hx-swap="outerHTML"></div>
+
+    <script defer>
+        document.onCustomLoad = () => {
+            const templateSource = $('#video-table-template').html();
+            const template = Handlebars.compile(templateSource);
+            const ws = new WS();
+            ws.connect();
+
+            ws.onmessage = msg => {
+                try {
+                    const packet = JSON.parse(msg.data);
+                    console.log(packet);
+                    if (packet.type == "queue_update") {
+                        const html = template(packet.videos);
+                        $('#video-table').html(html);
+                    }
+                } catch (e) {
+                    console.log(e);
+                }
+            };
+        }
+
+        if (document.customLoaded) document.onCustomLoad();
+    </script>
+    <div class="queue-main-content">
+        <h1>Queue Management</h1>
+        <!-- Toolbar -->
+        <!-- <div class="toolbar" style="margin-bottom: 1rem;">
+            <a href="#" class="btn">Add Video</a>
+            <input type="text" placeholder="Search..." style="padding: 0.5rem;" />
+        </div> -->
+        <!-- Video Table -->
+        <table id="video-table">
+            <thead>
+                <tr>
+                    <th>Video Name</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody hx-get="/api/queue" hx-trigger="htmx:afterRequest from:#imports" hx-ext="client-side-templates"
+                handlebars-template="video-table-template">
+            </tbody>
+        </table>
+
+        <template id="video-table-template">
+            {{#each this}}
+            <tr id="video-table-{{this.id}}">
+                <td>{{this.path}}</td>
+                <!-- <td>
+                    <a href="#" class="btn">Pause</a>
+                    <a href="#" class="btn">Remove</a>
+                </td> -->
+            </tr>
+            {{/each}}
+        </template>
+    </div>
+</body>
+
+</html>

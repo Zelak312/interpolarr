@@ -214,3 +214,29 @@ func (s *Sqlite) DeleteVideoByID(tx *sql.Tx, id int64) error {
 	_, err = statement.Exec(id)
 	return err
 }
+
+func (s *Sqlite) GetFailedVideos() ([]FailedVideo, error) {
+	querySQL := `SELECT f.id, f.ffmpeg_output, f.error, v.id, v.path, v.output_path FROM failed_videos f
+				INNER JOIN video v ON v.id = f.video_id`
+	rows, err := s.pool.Query(querySQL)
+	if err != nil {
+		return []FailedVideo{}, err
+	}
+
+	defer rows.Close()
+	videos := []FailedVideo{}
+	for rows.Next() {
+		var v FailedVideo
+		if err := rows.Scan(&v.ID, &v.FFmpegOutput, &v.Error, &v.Video.ID, &v.Video.Path, &v.Video.OutputPath); err != nil {
+			return videos, err
+		}
+		videos = append(videos, v)
+	}
+
+	// Check for errors from iterating over rows
+	if err := rows.Err(); err != nil {
+		return []FailedVideo{}, err
+	}
+
+	return videos, nil
+}

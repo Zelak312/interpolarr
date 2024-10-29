@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="libs/htmx.min.js"></script>
+    <script src="libs/client-side-templates.js"></script>
+    <script src="libs/handlebars.min-v4.7.8.js"></script>
+    <script src="libs/jquery-3.7.1.slim.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <title>Interpolar</title>
+</head>
+
+<body>
+    <div id="imports" hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div hx-get="components/sidebar.html" hx-trigger="load" hx-swap="outerHTML"></div>
+
+    <script defer>
+        function toggleOutput(button) {
+            const $output = $(button).prev('.error-ffmpeg-output');
+            $output.toggleClass('expanded');
+            $(button).text($output.hasClass('expanded') ? 'Show Less' : 'Show Full Output');
+        }
+    </script>
+    <div class="error-main-content">
+        <h1>Failed Videos</h1>
+        <div hx-get="/api/failed_videos" hx-trigger="htmx:afterRequest from:#imports" hx-ext="client-side-templates"
+            handlebars-template="failed-video-template">
+        </div>
+
+        <template id="failed-video-template">
+            {{#each this}}
+            <div class="error-video">
+                <h3>{{getFileName this.video.path}}</h3>
+                <div>{{this.error}}</div>
+                <div class="error-ffmpeg-output">{{this.ffmpegOutput}}</div>
+                <button class="btn" onclick="toggleOutput(this)">Show Full Output</button>
+            </div>
+            {{/each}}
+        </template>
+    </div>
+</body>

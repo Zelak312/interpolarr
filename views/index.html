@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="libs/htmx.min.js"></script>
+    <script src="libs/client-side-templates.js"></script>
+    <script src="libs/handlebars.min-v4.7.8.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <title>Interpolar</title>
+</head>
+
+<body>
+    <div id="imports" hx-get="components/imports.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div hx-get="components/sidebar.html" hx-trigger="load" hx-swap="outerHTML"></div>
+    <div class="main-content">
+        <h1>Dashboard</h1>
+        <div class="cards">
+            <div class="card" hx-get="/api/queue" hx-trigger="htmx:afterRequest from:#imports"
+                hx-ext="client-side-templates" handlebars-template="video-count-template" hx-target="#video-count">
+                <h3>Videos in Queue</h3>
+                <p id="video-count">...loading</p>
+            </div>
+
+            <template id="video-count-template">
+                {{this.length}}
+            </template>
+
+            <div class="card" hx-get="/api/workers" hx-trigger="htmx:afterRequest from:#imports"
+                hx-ext="client-side-templates" handlebars-template="active-worker-count-template"
+                hx-target="#active-workers">
+                <h3>Active Workers</h3>
+                <p id="active-workers">...loading</p>
+            </div>
+
+            <template id="active-worker-count-template">
+                {{countActiveWorkers this}}
+            </template>
+        </div>
+        <div class="activity">
+            <h2>Recent Activity</h2>
+            <ul>
+                <li>Video "Sample1.mp4" has been processed.</li>
+                <li>Worker 3 has started processing "Sample2.mp4".</li>
+                <li>New video "Sample3.mp4" added to the queue.</li>
+                <li>Worker 2 has completed a task.</li>
+            </ul>
+        </div>
+    </div>
+</body>
+
+</html>

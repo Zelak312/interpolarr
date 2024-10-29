@@ -1,7 +1,9 @@
+//go:generate templ generate ./views
 package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"fmt"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -21,7 +24,16 @@ type Video struct {
 	OutputPath string `json:"outPath"`
 }
 
+type FailedVideo struct {
+	ID           int64  `json:"id"`
+	Video        Video  `json:"video"`
+	FFmpegOutput string `json:"ffmpegOutput"`
+	Error        string `json:"error"`
+}
+
 var gQueue Queue
+var poolWorker *PoolWorker
+var hub *Hub
 var sqlite Sqlite
 
 var log *logrus.Entry
@@ -37,6 +49,9 @@ func setupLoggers(config *Config) {
 		panic("Couldn't create logger server")
 	}
 }
+
+//go:embed views/*
+var viewFiles embed.FS
 
 func main() {
 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
@@ -60,21 +75,44 @@ func main() {
 		log.Panic("Error getting videos: ", err)
 	}
 
-	gQueue, err = NewQueue(videos)
+	hub, err = NewHub()
+	if err != nil {
+		log.Panic("error creating the hub: ", err)
+	}
+
+	go hub.Run()
+	gQueue, err = NewQueue(videos, hub)
 	if err != nil {
 		log.Panic("Error creating the queue: ", err)
 	}
 
 	r := gin.Default()
 	r.Use(LoggerMiddleware())
-	r.GET("/ping", ping)
-	r.GET("/queue", listVideoQueue)
-	r.POST("/queue", addVideoToQueue)
-	r.DELETE("/queue/:id", delVideoToQueue)
+
+	// UI
+	r.Use(static.Serve("/", static.EmbedFolder(viewFiles, "views")))
+
+	// API
+	api := r.Group("/api")
+	{
+		api.GET("/ping", ping)
+
+		api.GET("/queue", listVideoQueue)
+		api.POST("/queue", addVideoToQueue)
+		api.DELETE("/queue/:id", delVideoToQueue)
+
+		api.GET("/workers", listWorkers)
+
+		api.GET("/failed_videos", listFailedVideos)
+
+		api.GET("/ws", func(c *gin.Context) {
+			hub.HandleConnections(c)
+		})
+	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
-	poolWorker := NewPoolWorker(ctx, &gQueue, &config)
+	poolWorker = NewPoolWorker(ctx, &gQueue, &config, hub)
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -186,4 +224,20 @@ func delVideoToQueue(c *gin.Context) {
 func listVideoQueue(c *gin.Context) {
 	log.Debug("Getting video queue")
 	c.JSON(200, gQueue.GetVideos())
+}
+
+func listWorkers(c *gin.Context) {
+	log.Debug("Getting worker list")
+	c.JSON(200, poolWorker.GetWorkerInfos())
+}
+
+func listFailedVideos(c *gin.Context) {
+	log.Debug("Getting failed video list")
+	failedVids, err := sqlite.GetFailedVideos()
+	if err != nil {
+		c.String(400, err.Error())
+		return
+	}
+
+	c.JSON(200, failedVids)
 }
