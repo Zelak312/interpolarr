@@ -188,6 +188,7 @@ func (s *Sqlite) FailVideo(video *Video, output string, progErr string) error {
 		return err
 	}
 
+	// TODO: mark video as failed, don't delete
 	err = s.DeleteVideoByID(tx, video.ID)
 	if err != nil {
 		return err

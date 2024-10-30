@@ -26,7 +26,6 @@
             ws.onmessage = msg => {
                 try {
                     const packet = JSON.parse(msg.data);
-                    console.log(packet);
                     if (packet.type == "queue_update") {
                         const html = template(packet.videos);
                         $('#video-table').html(html);

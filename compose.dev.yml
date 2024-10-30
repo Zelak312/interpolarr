@@ -1,16 +1,20 @@
 version: '3.8'
 services:
   interpolarr:
-    image: ghcr.io/zelak312/interpolarr:latest
+    build: .
     restart: unless-stopped
     environment:
       MODEL_PATH: "rife-v4.7" # example of changing configuration in docker
+      PUID: 1000
+      PGID: 1000
     volumes:
-      - "./process:/interpolarr/process" # optional, map process folder
+      # - "./process:/interpolarr/process" # optional, map process folder
       - "./interpolarr.db:/interpolarr/interpolarr.db" # should be mounted to not lose queue on container removal
-      - "./input_videos:/interpolarr/input_videos" # so the container can have access to the videos (folder is changable when adding a video <path>)
-      - "./ouput_videos:/interpolarr/ouput_videos" # so you can have access to the output videos (folder is changable when adding a video <output_path>)
+      # - "./input_videos:/interpolarr/input_videos" # so the container can have access to the videos (folder is changable when adding a video <path>)
+      # - "./ouput_videos:/interpolarr/ouput_videos" # so you can have access to the output videos (folder is changable when adding a video <output_path>)
       - "./logs:/interpolarr/logs" # so you can have logs on the machine
+      - "./config.yml:/interpolarr/config.yml"
+      - "/mnt:/mnt"
     ports:
       - 8080:8080
     runtime: nvidia
