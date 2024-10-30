@@ -1,4 +1,4 @@
-CREATE TABLE video (
+CREATE TABLE videos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     path TEXT NOT NULL,
     output_path TEXT NOT NULL,

@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+var frameRegex = regexp.MustCompile(`-> .+/0{0,}(\d+)\.`)
+
 func InterpolateVideo(ctx context.Context, binaryPath string, inputPath string, outputPath string,
 	model string, frameCount int64, extraArgs string, progressChan chan<- float64) (string, error) {
 
@@ -20,9 +22,6 @@ func InterpolateVideo(ctx context.Context, binaryPath string, inputPath string, 
 
 // TODO: handle errors in here
 func parseProgressRife(cmd *Command, frameCount int64, progressChan chan<- float64) {
-	// TODO: check if it should be better to compile the regex only once
-	frameRegex := regexp.MustCompile(`-> .+/0{0,}(\d+)\.`)
-
 	scanner := bufio.NewScanner(cmd.stderrPipe)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())

@@ -68,7 +68,7 @@ func (s *Sqlite) RunMigrations() {
 }
 
 func (s *Sqlite) GetVideos() ([]Video, error) {
-	querySQL := `SELECT id, path, output_path FROM video WHERE done = false`
+	querySQL := `SELECT id, path, output_path FROM videos WHERE done = false AND failed = false`
 	rows, err := s.pool.Query(querySQL)
 	if err != nil {
 		return []Video{}, err
@@ -93,7 +93,7 @@ func (s *Sqlite) GetVideos() ([]Video, error) {
 }
 
 func (s *Sqlite) InsertVideo(video *Video) (int64, error) {
-	insertSQL := `INSERT INTO video (path, output_path, done) VALUES (?, ?, ?)`
+	insertSQL := `INSERT INTO videos (path, output_path, done) VALUES (?, ?, ?)`
 	statement, err := s.pool.Prepare(insertSQL)
 	if err != nil {
 		return 0, err
@@ -115,7 +115,7 @@ func (s *Sqlite) InsertVideo(video *Video) (int64, error) {
 }
 
 func (s *Sqlite) MarkVideoAsDone(video *Video) error {
-	updateSQL := `UPDATE video SET done = true WHERE id = ?`
+	updateSQL := `UPDATE videos SET done = true WHERE id = ?`
 	statement, err := s.pool.Prepare(updateSQL)
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func (s *Sqlite) MarkVideoAsDone(video *Video) error {
 }
 
 func (s *Sqlite) GetVideoRetries(video *Video) (int, error) {
-	getRetrySQL := `SELECT retries FROM video WHERE id = ?`
+	getRetrySQL := `SELECT retries FROM videos WHERE id = ?`
 	statement, err := s.pool.Prepare(getRetrySQL)
 	if err != nil {
 		return 0, err
@@ -149,7 +149,7 @@ func (s *Sqlite) GetVideoRetries(video *Video) (int, error) {
 }
 
 func (s *Sqlite) UpdateVideoRetries(video *Video, retries int) error {
-	updateSQL := `UPDATE video SET retries = ? WHERE id = ?`
+	updateSQL := `UPDATE videos SET retries = ? WHERE id = ?`
 	statement, err := s.pool.Prepare(updateSQL)
 	if err != nil {
 		return err
@@ -188,8 +188,14 @@ func (s *Sqlite) FailVideo(video *Video, output string, progErr string) error {
 		return err
 	}
 
-	// TODO: mark video as failed, don't delete
-	err = s.DeleteVideoByID(tx, video.ID)
+	markFailedSQL := `UPDATE videos SET failed = ? WHERE id = ?`
+	statement, err = s.pool.Prepare(markFailedSQL)
+	if err != nil {
+		return err
+	}
+	defer statement.Close()
+
+	_, err = statement.Exec(true, video.ID)
 	if err != nil {
 		return err
 	}
@@ -198,7 +204,7 @@ func (s *Sqlite) FailVideo(video *Video, output string, progErr string) error {
 }
 
 func (s *Sqlite) DeleteVideoByID(tx *sql.Tx, id int64) error {
-	deleteSQL := `DELETE FROM video WHERE id = ?`
+	deleteSQL := `DELETE FROM videos WHERE id = ?`
 	var statement *sql.Stmt
 	var err error
 	if tx != nil {
@@ -218,7 +224,7 @@ func (s *Sqlite) DeleteVideoByID(tx *sql.Tx, id int64) error {
 
 func (s *Sqlite) GetFailedVideos() ([]FailedVideo, error) {
 	querySQL := `SELECT f.id, f.ffmpeg_output, f.error, v.id, v.path, v.output_path FROM failed_videos f
-				INNER JOIN video v ON v.id = f.video_id`
+				INNER JOIN videos v ON v.id = f.video_id`
 	rows, err := s.pool.Query(querySQL)
 	if err != nil {
 		return []FailedVideo{}, err

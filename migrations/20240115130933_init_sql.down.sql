@@ -1,1 +1,1 @@
-DROP TABLE video;
+DROP TABLE videos;

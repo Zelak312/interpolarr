@@ -237,11 +237,6 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		}
 	}
 
-	// TODO: count steps and assign totalStep
-	// also assign and modify current step
-	// TODO: change these setps to actually be in a wokerStep
-	// or something like this, so the progressChan, totalStep and step
-	// can be done dynamically if I add more steps and shit
 	progressChan := make(chan float64)
 	defer close(progressChan)
 	go w.updateProgress(progressChan)

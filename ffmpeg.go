@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+var durationRegex = regexp.MustCompile(`Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})`)
+
 type VideoInfo struct {
 	Fps        float64
 	FrameCount int64
@@ -105,9 +107,6 @@ func parseFPS(fpsFraction string) (float64, error) {
 // TODO: handle errors in here
 func parseProgressFFmpeg(cmd *Command, progressChan chan<- float64) {
 	var totalDuration float64
-	// TODO: check if it should be better to compile the regex only once
-	durationRegex := regexp.MustCompile(`Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})`)
-
 	scanner := bufio.NewScanner(cmd.stderrPipe)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
