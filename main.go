@@ -133,6 +133,8 @@ func main() {
 
 	// Start running things
 	go poolWorker.RunDispatcherBlocking()
+
+	log.Infof("Starting dashboard and api on %s:%d", config.BindAddress, config.Port)
 	err = r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 	if err != nil {
 		log.Panic("Error running web server: ", err)

@@ -16,7 +16,7 @@
     });
 
     Handlebars.registerHelper('makeProgress', function (progress) {
-        return Math.round(progress) + "%";
+        return Number(progress).toFixed(2) + "%";
     });
 
     class WS {
