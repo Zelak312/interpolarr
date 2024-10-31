@@ -31,11 +31,14 @@ If you want to support my work<br>
 
 ## How it works
 
-Interpolarr will process video in a queue format, first in first out. It will extract the audio, convert the video to half of the target fps and then the frames will be extracted. Those frames will be interpolated with rafe to 2x the frame count and then the video will be reconstructed with the audio and the new framerate.
+Interpolarr will process video in a queue format, first in first out. It will extract the audio, the video frames will be extracted. Those frames will be interpolated with rife to the desired frame rate and then the video will be reconstructed with the audio and the new framerate.
 
 ## Configuration
 
 Interpolarr is configured using a YAML file. Below is the structure of the configuration file with default values:
+
+**Values that are in between <> are required**
+**Values that are in between [] are optional**
 
 ```yaml
 ---
@@ -48,14 +51,12 @@ logPath: "./logs"
 modelPath: "rife-v4.7"
 workers: 1
 targetFPS: 60.0
-bypassHighFPS: true
 deleteInputFileWhenFinished: false
 deleteOutputIfAlreadyExist: false
+CopyFileToDestinationOnSkip: false
 ffmpegOptions:
-    videoCodec: "libx264"
-    HWAccel: <hardware_acceleration_method>
-    HWAccelDecodeFlag: <decode_flag>
-    HWAccelEncodeFlag: <encode_flag>
+    HWAccelDecodeFlag: [decode_flag]
+    HWAccelEncodeFlag: [encode_flag]
 ```
 
 ### Env variables can also be used
@@ -72,9 +73,9 @@ Interpolarr will use the env if specified over the config file, the envs variabl
 -   `modelPath`: path to which rife model should be used. The default path of `rife-v4.7` means that the folder should be where interpolarr is executed, **it is a path**
 -   `workers`: how many videos can be interpolated concurrently, **using 1 is highly recommended unless you know your gpu or cpu can handle more**
 -   `targetFPS`: Which FPS should the videos be after interpoaltion
--   `bypassHighFPS`: RIFE is used to 2x the video framerates, if the targetFPS is 60 fps and the video is over 30 fps, interpolarr will skip the video. If this option is false, interpolarr will reduce the fps of the video to 30 fps to reach 60 fps with rife
 -   `deleteInputFileWhenFinished`: When the interpolation of the video is done, interpolarr will delete the input file, **be careful with this if you don't want to lose the input (orignal) file, use at your own risk**
 -   `deleteOutputIfAlreadyExist`: If the output file already exist (output being the converted file), it will delete that file if true and continue the process for the conversion. If it is false, it will skip the this file
+-   `CopyFileToDestinationOnSkip`: When a file is skipped, it's because it already is at the target FPS or higher, this option will copy the file to the output if the file is skipped
 
 ## Configuration with docker
 
@@ -87,7 +88,7 @@ Some of the configuration are unchangable in docker for simple reasons like, the
 
 ### Default docker configurations
 
-Those are default docker configurations, they are overridable from a mount config.yml file and also the ENV variables. These are what most people would probably use when using docker, they are in [docker_default.yml](docker_default.yml)
+Those are default docker configurations, they are overridable from a mount config.yml file and also the ENV variables. These are what most people would probably use when using docker, they are in stored in [docker_default.yml](docker_default.yml)
 
 ## API Endpoints
 

@@ -18,7 +18,6 @@ type Config struct {
 	ModelPath                   string        `yaml:"modelPath"`
 	Workers                     int           `yaml:"workers"`
 	TargetFPS                   float64       `yaml:"targetFPS"`
-	BypassHighFPS               *bool         `yaml:"bypassHighFPS"`
 	DeleteInputFileWhenFinished *bool         `yaml:"deleteInputFileWhenFinished"`
 	FfmpegOptions               FfmpegOptions `yaml:"ffmpegOptions"`
 	DeleteOutputIfAlreadyExist  *bool         `yaml:"deleteOutputIfAlreadyExist"`
@@ -27,8 +26,6 @@ type Config struct {
 }
 
 type FfmpegOptions struct {
-	VideoCodec        string `yaml:"videoCodec"`
-	HWAccel           string `yaml:"HWAccel"`
 	HWAccelDecodeFlag string `yaml:"HWAccelDecodeFlag"`
 	HWAccelEncodeFlag string `yaml:"HWAccelEncodeFlag"`
 }
@@ -67,17 +64,8 @@ func verifyConfig(config *Config) error {
 		config.Workers = 1
 	}
 
-	if config.FfmpegOptions.VideoCodec == "" {
-		config.FfmpegOptions.VideoCodec = "libx264"
-	}
-
 	if config.TargetFPS == 0 {
 		config.TargetFPS = 60
-	}
-
-	if config.BypassHighFPS == nil {
-		defaultVal := true
-		config.BypassHighFPS = &defaultVal
 	}
 
 	if config.DeleteInputFileWhenFinished == nil {
