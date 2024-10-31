@@ -20,6 +20,9 @@ jobs:
         env:
             PLATFORMS: linux/amd64
         steps:
+            - name: Delete huge unnecessary tools folder
+              run: cd /opt && find . -maxdepth 1 -mindepth 1 '!' -path ./containerd '!' -path ./actionarchivecache '!' -path ./runner '!' -path ./runner-cache -exec rm -rf '{}' ';'
+
             - name: Checkout
               uses: actions/checkout@v4
 
