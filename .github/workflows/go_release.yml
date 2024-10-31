@@ -31,7 +31,7 @@ jobs:
                   GOOS: ${{ matrix.goos }}
                   GOARCH: ${{ matrix.goarch }}
               run: |
-                  go build -v -o ${{ env.REPO_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }} .  # build and name output file
+                  go build -v -tags=release -o ${{ env.REPO_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }} .  # build and name output file
 
             - name: Archive production artifacts
               uses: actions/upload-artifact@v3

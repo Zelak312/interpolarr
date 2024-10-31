@@ -1,4 +1,3 @@
-//go:generate templ generate ./views
 package main
 
 import (
@@ -86,6 +85,7 @@ func main() {
 		log.Panic("Error creating the queue: ", err)
 	}
 
+	initGin()
 	r := gin.Default()
 	r.Use(LoggerMiddleware())
 

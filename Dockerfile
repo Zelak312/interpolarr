@@ -72,7 +72,7 @@ COPY migrations ./migrations/
 # Copy the entire views directory
 COPY views ./views/
 
-RUN go mod download && go build -o interpolarr .
+RUN go mod download && go build -tags=release -o interpolarr .
 
 ######################################################
 
