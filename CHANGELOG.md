@@ -2,6 +2,64 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0-beta] - 2024-10-31
+
+### Bug Fixes
+
+- Hanging issue + not commiting transaction for retry
+- Docker issues for ffmpeg and rife
+- Data race with workgroup
+- Add warning on doWork errors
+- Better queue system to get real items + moving out of templ
+- Multiple race conditions
+- More races
+
+### Features
+
+- Add logs for stdout and stderr in real time
+- DeleteOutputIfAlreadyExist & refactoring output for processVideo
+- Added logger for workers
+- Add option for copying the file on skip
+- Add ffmpeg worker progress
+- Add rife interpolation progress
+- Make parsing fps return output on error
+- Add dashboard page
+- Using htmx to get queue length
+- Adding actie workers, switching to handlebars
+- Add queue page
+- Add workers page
+- Add base websocket stuff
+- Send simple progress report from worker to ws
+- Send real time step updates
+- Add queue ws updates
+- Ui queue real time update
+- Real time updated for worker
+- Add api failed_videos
+- Add ui to see video errors
+- Docker with gpu working with vulkan
+
+### Miscellaneous Tasks
+
+- Better logs
+- Ignore .vscode folder
+- More logging (finished process video)
+- Better logs
+- Renaming runDispatcher to show it's blocking
+- Add more seconds to shutdown timer
+- Adding toodos
+- Refactor new logger in
+- Rewriting the worker part
+- Change making the video 30 fps before
+- Refactor, adding workers
+- Refactor command structure
+- Removing ws htmx extension
+- Adding jquery
+- Refactor for better views structure
+- Fix todos (refactor) + change failed video sql
+- Build in release mode
+- Change percentage to show 2 decimals
+- Remove unecessary config and change readme
+
 ## [1.0.1-beta] - 2024-01-21
 
 ### Bug Fixes
