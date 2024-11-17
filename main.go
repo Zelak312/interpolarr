@@ -155,7 +155,7 @@ func addVideoToQueue(c *gin.Context) {
 		return
 	}
 
-	videoExist, err := FileExist(video.Path)
+	videoExist, err := PathExist(video.Path)
 	if err != nil {
 		c.String(400, err.Error())
 		return

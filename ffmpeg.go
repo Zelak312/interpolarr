@@ -17,6 +17,14 @@ type VideoInfo struct {
 	FrameCount int64
 }
 
+func appendHWAccelDecodeArgs(args []string, config FfmpegOptions) []string {
+	if config.HWAccelDecodeFlag != "" {
+		args = append(args, "-hwaccel", config.HWAccelDecodeFlag)
+	}
+
+  return args
+}
+
 func appendHWAccelEncodeArgs(args []string, config FfmpegOptions) []string {
 	if config.HWAccelEncodeFlag != "" {
 		args = append(args, "-c:v", config.HWAccelEncodeFlag)
@@ -63,12 +71,10 @@ func ExtractAudio(ctx context.Context, inputPath string, outputPath string, prog
 func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string, progressChan chan<- float64) (string, error) {
 	outputPathTemplate := path.Join(outputPath, "frame_%08d.png")
 	args := []string{}
-	if config.HWAccelDecodeFlag != "" {
-		args = append(args, "-c:v", config.HWAccelDecodeFlag)
-	}
-
+  args = appendHWAccelDecodeArgs(args, config)
 	args = append(args, "-i", inputPath, "-fps_mode", "passthrough", "-progress", "pipe:2", outputPathTemplate)
-	cmd := NewCommandContext(ctx, "ffmpeg", args...)
+	
+  cmd := NewCommandContext(ctx, "ffmpeg", args...)
 	go parseProgressFFmpeg(cmd, progressChan)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
@@ -79,7 +85,8 @@ func ConstructVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath st
 	args := []string{"-framerate", fmt.Sprintf("%g", fps), "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy"}
 	args = appendHWAccelEncodeArgs(args, config)
 	args = append(args, "-crf", "20", "-pix_fmt", "yuv420p", "-progress", "pipe:2", outputPath)
-	cmd := NewCommandContext(ctx, "ffmpeg", args...)
+	
+  cmd := NewCommandContext(ctx, "ffmpeg", args...)
 	go parseProgressFFmpeg(cmd, progressChan)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
