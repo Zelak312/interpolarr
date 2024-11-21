@@ -1,9 +1,11 @@
 module github.com/Zelak312/interpolarr
 
-go 1.21.5
+go 1.23.0
+
+replace github.com/Zelak312/rife-ncnn-vulkan-go => /home/zelak/git/Zelak312/rife-ncnn-vulkan-go
 
 require (
-	github.com/gin-contrib/static v1.1.2
+	github.com/Zelak312/rife-ncnn-vulkan-go v0.0.0-00010101000000-000000000000
 	github.com/gin-gonic/gin v1.9.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -19,9 +21,11 @@ require (
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/kr/pretty v0.3.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.16 // indirect
+	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
 require (

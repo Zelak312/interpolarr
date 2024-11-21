@@ -1,18 +1,10 @@
 package main
 
 import (
-	"context"
 	"embed"
-	"flag"
-	"fmt"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
-	"time"
 
-	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -53,93 +45,104 @@ func setupLoggers(config *Config) {
 var viewFiles embed.FS
 
 func main() {
-	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
-	flag.Parse()
-	config, err := GetConfig(*configPath)
+	proc, err := NewVideoProcessor("testepisode2.mp4")
 	if err != nil {
-		panic("Error get config: " + err.Error())
+		panic(err)
 	}
 
-	setupLoggers(&config)
-	log.WithFields(StructFields(config)).Debug("Parsed config")
-	if *config.DeleteInputFileWhenFinished {
-		log.Warn("DeleteInputFileWhenFinished is ON, it will delete the input file when finished!!!")
-	}
-
-	sqlite = NewSqlite(config.DatabasePath)
-	sqlite.RunMigrations()
-
-	videos, err := sqlite.GetVideos()
-	if err != nil {
-		log.Panic("Error getting videos: ", err)
-	}
-
-	hub, err = NewHub()
-	if err != nil {
-		log.Panic("error creating the hub: ", err)
-	}
-
-	go hub.Run()
-	gQueue, err = NewQueue(videos, hub)
-	if err != nil {
-		log.Panic("Error creating the queue: ", err)
-	}
-
-	initGin()
-	r := gin.Default()
-	r.Use(LoggerMiddleware())
-
-	// UI
-	r.Use(static.Serve("/", static.EmbedFolder(viewFiles, "views")))
-
-	// API
-	api := r.Group("/api")
-	{
-		api.GET("/ping", ping)
-
-		api.GET("/queue", listVideoQueue)
-		api.POST("/queue", addVideoToQueue)
-		api.DELETE("/queue/:id", delVideoToQueue)
-
-		api.GET("/workers", listWorkers)
-
-		api.GET("/failed_videos", listFailedVideos)
-
-		api.GET("/ws", func(c *gin.Context) {
-			hub.HandleConnections(c)
-		})
-	}
-
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	sigs := make(chan os.Signal, 1)
-	poolWorker = NewPoolWorker(ctx, &gQueue, &config, hub)
-
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigs
-		log.Info("Signal received: ", sig, " shuting down")
-		ctxCancel()
-
-		timer := time.NewTimer(time.Second * 30)
-		go func() {
-			<-timer.C
-			log.Info("Taking too long to shutdown, exiting forcefully")
-			os.Exit(1)
-		}()
-
-		poolWorker.waitGroup.Wait()
-		os.Exit(1)
-	}()
-
-	// Start running things
-	go poolWorker.RunDispatcherBlocking()
-
-	log.Infof("Starting dashboard and api on %s:%d", config.BindAddress, config.Port)
-	err = r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
-	if err != nil {
-		log.Panic("Error running web server: ", err)
+	if err := proc.Process("output.mkv"); err != nil {
+		panic(err)
 	}
 }
+
+// func main() {
+// 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
+// 	flag.Parse()
+// 	config, err := GetConfig(*configPath)
+// 	if err != nil {
+// 		panic("Error get config: " + err.Error())
+// 	}
+
+// 	setupLoggers(&config)
+// 	log.WithFields(StructFields(config)).Debug("Parsed config")
+// 	if *config.DeleteInputFileWhenFinished {
+// 		log.Warn("DeleteInputFileWhenFinished is ON, it will delete the input file when finished!!!")
+// 	}
+
+// 	sqlite = NewSqlite(config.DatabasePath)
+// 	sqlite.RunMigrations()
+
+// 	videos, err := sqlite.GetVideos()
+// 	if err != nil {
+// 		log.Panic("Error getting videos: ", err)
+// 	}
+
+// 	hub, err = NewHub()
+// 	if err != nil {
+// 		log.Panic("error creating the hub: ", err)
+// 	}
+
+// 	go hub.Run()
+// 	gQueue, err = NewQueue(videos, hub)
+// 	if err != nil {
+// 		log.Panic("Error creating the queue: ", err)
+// 	}
+
+// 	initGin()
+// 	r := gin.Default()
+// 	r.Use(LoggerMiddleware())
+
+// 	// UI
+// 	r.Use(static.Serve("/", static.EmbedFolder(viewFiles, "views")))
+
+// 	// API
+// 	api := r.Group("/api")
+// 	{
+// 		api.GET("/ping", ping)
+
+// 		api.GET("/queue", listVideoQueue)
+// 		api.POST("/queue", addVideoToQueue)
+// 		api.DELETE("/queue/:id", delVideoToQueue)
+
+// 		api.GET("/workers", listWorkers)
+
+// 		api.GET("/failed_videos", listFailedVideos)
+
+// 		api.GET("/ws", func(c *gin.Context) {
+// 			hub.HandleConnections(c)
+// 		})
+// 	}
+
+// 	ctx, ctxCancel := context.WithCancel(context.Background())
+// 	sigs := make(chan os.Signal, 1)
+// 	poolWorker = NewPoolWorker(ctx, &gQueue, &config, hub)
+
+// 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+// 	go func() {
+// 		sig := <-sigs
+// 		log.Info("Signal received: ", sig, " shuting down")
+// 		ctxCancel()
+
+// 		timer := time.NewTimer(time.Second * 30)
+// 		go func() {
+// 			<-timer.C
+// 			log.Info("Taking too long to shutdown, exiting forcefully")
+// 			os.Exit(1)
+// 		}()
+
+// 		poolWorker.waitGroup.Wait()
+// 		os.Exit(1)
+// 	}()
+
+// 	// Start running things
+// 	go poolWorker.RunDispatcherBlocking()
+
+// 	log.Infof("Starting dashboard and api on %s:%d", config.BindAddress, config.Port)
+// 	err = r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
+// 	if err != nil {
+// 		log.Panic("Error running web server: ", err)
+// 	}
+// }
 
 func ping(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
