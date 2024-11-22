@@ -2,9 +2,11 @@ package main
 
 import (
 	"embed"
+	"io"
 	"net/http"
 	"strconv"
 
+	"github.com/Zelak312/rife-ncnn-vulkan-go"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -45,13 +47,98 @@ func setupLoggers(config *Config) {
 var viewFiles embed.FS
 
 func main() {
-	proc, err := NewVideoProcessor("testepisode2.mp4")
+
+	// RIFE
+	config := rife.DefaultConfig(1280, 720)
+	// Create RIFE instance
+	r, err := rife.New(config)
+	if err != nil {
+		panic(err)
+	}
+	defer r.Close()
+	// Load model
+	err = r.LoadModel("/home/zelak/space/rife/rife-v4.24")
 	if err != nil {
 		panic(err)
 	}
 
-	if err := proc.Process("output.mkv"); err != nil {
+	// PROCESS
+	vp, err := NewVideoProcessor("./shounen-ga-otona-ni-natta-natsu-1-720p-h1x.mp4")
+	if err != nil {
 		panic(err)
+	}
+
+	// Start reading frames
+	if err := vp.StartReading(); err != nil {
+		panic(err)
+	}
+
+	// Start writing at 2x framerate
+	if err := vp.StartWriting("output.mkv", vp.FrameRate()*2); err != nil {
+		panic(err)
+	}
+
+	defer vp.Close()
+
+	var secondFrame Frame
+	firstIteration := true
+
+	for {
+		// Get first frame (either new or reused from previous iteration)
+		var firstFrame Frame
+		var err error
+		if secondFrame.Data != nil {
+			firstFrame = secondFrame
+		} else {
+			firstFrame, err = vp.ReadFrame()
+			if err == io.EOF && !firstIteration {
+				break
+			}
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		// Get second frame
+		secondFrame, err = vp.ReadFrame()
+		if err == io.EOF {
+			if !firstIteration {
+				if err := vp.WriteFrame(firstFrame); err != nil {
+					panic(err)
+				}
+			}
+			break
+		}
+		if err != nil {
+			panic(err)
+		}
+
+		// Interpolate between frames
+		interpolated, err := r.InterpolateBGR(firstFrame.Data, secondFrame.Data, 0.5)
+		if err != nil {
+			panic(err)
+		}
+
+		// Write frames in sequence
+		if firstIteration {
+			if err := vp.WriteFrame(firstFrame); err != nil {
+				panic(err)
+			}
+		}
+
+		if err := vp.WriteFrame(Frame{
+			Data:   interpolated,
+			Width:  vp.Width(),
+			Height: vp.Height(),
+		}); err != nil {
+			panic(err)
+		}
+
+		if err := vp.WriteFrame(secondFrame); err != nil {
+			panic(err)
+		}
+
+		firstIteration = false
 	}
 }
 
