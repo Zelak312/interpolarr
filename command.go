@@ -6,69 +6,85 @@ import (
 	"io"
 	"os/exec"
 	"strings"
-	"sync"
 )
 
 type Command struct {
-	cmd              *exec.Cmd
-	name             string
-	output           bytes.Buffer
-	stdoutPipe       io.ReadCloser
-	stdoutPipeWriter io.WriteCloser
-	stderrPipe       io.ReadCloser
-	stderrPipeWriter io.WriteCloser
+	cmd                    *exec.Cmd
+	name                   string
+	output                 bytes.Buffer
+	stdin                  io.WriteCloser
+	stdout                 io.ReadCloser
+	stderr                 io.ReadCloser
+	isOutputBufferDisabled bool
 }
 
 func NewCommandContext(ctx context.Context, cmd_name string, args ...string) *Command {
 	cmd := exec.CommandContext(ctx, cmd_name, args...)
 
-	c := Command{cmd: cmd, name: cmd_name + " " + strings.Join(args, " ")}
-
-	stdoutPipeReader, stdoutPipeWriter := io.Pipe()
-	c.stdoutPipe = stdoutPipeReader
-	c.stdoutPipeWriter = stdoutPipeWriter
-
-	stderrPipeReader, stderrPipeWriter := io.Pipe()
-	c.stderrPipe = stderrPipeReader
-	c.stderrPipeWriter = stderrPipeWriter
+	c := Command{cmd: cmd, name: cmd_name + " " + strings.Join(args, " "), isOutputBufferDisabled: false}
 	return &c
 }
 
-func CreateAndRunCommandContext(ctx context.Context, cmd_name string, args ...string) (string, error) {
-	cmd := NewCommandContext(ctx, cmd_name, args...)
-	return cmd.CombinedOutput()
+func (c *Command) DisableOutputBuffer() {
+	c.isOutputBufferDisabled = true
+}
+
+func (c *Command) GetStdin() (io.WriteCloser, error) {
+	if c.stdin == nil {
+		stdin, err := c.cmd.StdinPipe()
+		if err != nil {
+			return nil, err
+		}
+		c.stdin = stdin
+	}
+	return c.stdin, nil
+}
+
+func (c *Command) GetStdout() (io.ReadCloser, error) {
+	if c.stdout == nil {
+		stdout, err := c.cmd.StdoutPipe()
+		if err != nil {
+			return nil, err
+		}
+		c.stdout = stdout
+	}
+	return c.stdout, nil
+}
+
+func (c *Command) GetStderr() (io.ReadCloser, error) {
+	if c.stderr == nil {
+		stderr, err := c.cmd.StdoutPipe()
+		if err != nil {
+			return nil, err
+		}
+		c.stderr = stderr
+	}
+	return c.stderr, nil
+}
+
+func (c *Command) Start() error {
+	if !c.isOutputBufferDisabled {
+		c.cmd.Stdout = &c.output
+		c.cmd.Stderr = &c.output
+	}
+
+	return c.cmd.Start()
+}
+
+func (c *Command) Wait() error {
+	err := c.cmd.Wait()
+	return err
 }
 
 func (c *Command) CombinedOutput() (string, error) {
-	stdoutPipe, err := c.cmd.StdoutPipe()
-	if err != nil {
+	if err := c.Start(); err != nil {
 		return "", err
 	}
 
-	stderrPipe, err := c.cmd.StderrPipe()
-	if err != nil {
-		return "", err
-	}
+	err := c.Wait()
+	return c.GetOutput(), err
+}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	multiWriterStdout := io.MultiWriter(&c.output, c.stdoutPipeWriter)
-	multiWriterStderr := io.MultiWriter(&c.output, c.stderrPipeWriter)
-	go func() {
-		defer wg.Done()
-		io.Copy(multiWriterStdout, stdoutPipe)
-		c.stdoutPipeWriter.Close()
-	}()
-	go func() {
-		defer wg.Done()
-		io.Copy(multiWriterStderr, stderrPipe)
-		c.stderrPipeWriter.Close()
-	}()
-
-	err = c.cmd.Run()
-	c.stdoutPipe.Close()
-	c.stderrPipe.Close()
-	wg.Wait()
-	return c.output.String(), err
+func (c *Command) GetOutput() string {
+	return c.output.String()
 }

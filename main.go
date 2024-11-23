@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"embed"
+	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -50,7 +52,8 @@ func main() {
 	// Config
 	fpsTarget := 60
 
-	videoInfo, err := GetVideoInfo("./input1.mp4")
+	ctx, _ := context.WithCancel(context.Background())
+	videoInfo, _, err := GetVideoInfo(ctx, "./input1.mp4")
 	if err != nil {
 		panic(err)
 	}
@@ -79,12 +82,12 @@ func main() {
 	}
 
 	// Start reading frames
-	if err := vp.StartReading(); err != nil {
+	if err := vp.StartReading(ctx); err != nil {
 		panic(err)
 	}
 
 	// Start writing at 2x framerate
-	if err := vp.StartWriting("output2.mkv", float64(fpsTarget)); err != nil {
+	if err := vp.StartWriting(ctx, "output2.mkv", float64(fpsTarget)); err != nil {
 		panic(err)
 	}
 
@@ -125,6 +128,11 @@ func main() {
 			frame1 = frame2
 			frame2, err = vp.ReadFrame()
 			if err != nil {
+				if err == io.EOF {
+					// TODO warn on this
+					break
+				}
+
 				panic(err)
 			}
 			currentIdx++
