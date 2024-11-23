@@ -47,9 +47,13 @@ func setupLoggers(config *Config) {
 var viewFiles embed.FS
 
 func main() {
+	videoInfo, err := GetVideoInfo("./Sword Art Online - S01E16 - Land of the Fairies Bluray-1080p.mkv")
+	if err != nil {
+		panic(err)
+	}
 
 	// RIFE
-	config := rife.DefaultConfig(1280, 720)
+	config := rife.DefaultConfig(videoInfo.Width, videoInfo.Height)
 	// Create RIFE instance
 	r, err := rife.New(config)
 	if err != nil {
@@ -63,7 +67,7 @@ func main() {
 	}
 
 	// PROCESS
-	vp, err := NewVideoProcessor("./shounen-ga-otona-ni-natta-natsu-1-720p-h1x.mp4")
+	vp, err := NewVideoProcessor(videoInfo)
 	if err != nil {
 		panic(err)
 	}
