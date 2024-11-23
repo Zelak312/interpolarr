@@ -2,7 +2,7 @@ package main
 
 import (
 	"embed"
-	"io"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -47,10 +47,16 @@ func setupLoggers(config *Config) {
 var viewFiles embed.FS
 
 func main() {
+	// Config
+	fpsTarget := 60
+
 	videoInfo, err := GetVideoInfo("./Sword Art Online - S01E16 - Land of the Fairies Bluray-1080p.mkv")
 	if err != nil {
 		panic(err)
 	}
+
+	targetFrameCount := int64(float64(videoInfo.FrameCount) / videoInfo.FrameRate * float64(fpsTarget))
+	scale := float64(videoInfo.FrameCount) / float64(targetFrameCount)
 
 	// RIFE
 	config := rife.DefaultConfig(videoInfo.Width, videoInfo.Height)
@@ -78,71 +84,73 @@ func main() {
 	}
 
 	// Start writing at 2x framerate
-	if err := vp.StartWriting("output.mkv", vp.FrameRate()*2); err != nil {
+	if err := vp.StartWriting("output2.mkv", float64(fpsTarget)); err != nil {
 		panic(err)
 	}
 
 	defer vp.Close()
 
-	var secondFrame Frame
-	firstIteration := true
+	// Read first frame
+	frame1, err := vp.ReadFrame()
+	if err != nil {
+		panic(err)
+	}
 
-	for {
-		// Get first frame (either new or reused from previous iteration)
-		var firstFrame Frame
-		var err error
-		if secondFrame.Data != nil {
-			firstFrame = secondFrame
-		} else {
-			firstFrame, err = vp.ReadFrame()
-			if err == io.EOF && !firstIteration {
-				break
-			}
+	// Read second frame
+	frame2, err := vp.ReadFrame()
+	if err != nil {
+		panic(err)
+	}
+
+	currentIdx := int64(0) // Current base frame index
+
+	for i := int64(0); i < targetFrameCount; i++ {
+		// Calculate frame position and timestep
+		fx := float64(i) * scale
+		sx := int64(math.Floor(fx))
+		timestep := float32(fx - float64(sx))
+
+		// Handle bounds
+		if sx < 0 {
+			sx = 0
+			timestep = 0
+		}
+		if sx >= videoInfo.FrameCount-1 {
+			sx = videoInfo.FrameCount - 2
+			timestep = 1
+		}
+
+		// Read frames until we reach the needed base frame
+		for currentIdx < sx {
+			frame1 = frame2
+			frame2, err = vp.ReadFrame()
 			if err != nil {
 				panic(err)
 			}
+			currentIdx++
 		}
 
-		// Get second frame
-		secondFrame, err = vp.ReadFrame()
-		if err == io.EOF {
-			if !firstIteration {
-				if err := vp.WriteFrame(firstFrame); err != nil {
-					panic(err)
-				}
+		// Generate and write frame
+		if timestep == 0 {
+			// Direct frame
+			if err := vp.WriteFrame(frame1); err != nil {
+				panic(err)
 			}
-			break
-		}
-		if err != nil {
-			panic(err)
-		}
+		} else {
+			// Interpolated frame
+			interpolated, err := r.InterpolateBGR(frame1.Data, frame2.Data, timestep)
+			if err != nil {
+				panic(err)
+			}
 
-		// Interpolate between frames
-		interpolated, err := r.InterpolateBGR(firstFrame.Data, secondFrame.Data, 0.5)
-		if err != nil {
-			panic(err)
-		}
-
-		// Write frames in sequence
-		if firstIteration {
-			if err := vp.WriteFrame(firstFrame); err != nil {
+			if err := vp.WriteFrame(Frame{
+				Data:   interpolated,
+				Width:  vp.Width(),
+				Height: vp.Height(),
+			}); err != nil {
 				panic(err)
 			}
 		}
-
-		if err := vp.WriteFrame(Frame{
-			Data:   interpolated,
-			Width:  vp.Width(),
-			Height: vp.Height(),
-		}); err != nil {
-			panic(err)
-		}
-
-		if err := vp.WriteFrame(secondFrame); err != nil {
-			panic(err)
-		}
-
-		firstIteration = false
 	}
 }
 
