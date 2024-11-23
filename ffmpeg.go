@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -174,7 +175,9 @@ func (vp *VideoProcessor) StartWriting(outputPath string, outputFrameRate float6
 		"-video_size", fmt.Sprintf("%dx%d", vp.videoInfo.Width, vp.videoInfo.Height),
 		"-framerate", fmt.Sprintf("%f", outputFrameRate),
 		"-i", "pipe:0",
+		"-i", vp.videoInfo.InputPath,
 		"-c:v", "h264_nvenc",
+		"-c:a", "copy",
 		"-crf", "20",
 		"-pix_fmt", "yuv420p",
 		outputPath)
@@ -184,6 +187,9 @@ func (vp *VideoProcessor) StartWriting(outputPath string, outputFrameRate float6
 		return fmt.Errorf("creating stdin pipe: %v", err)
 	}
 	vp.stdin = stdin
+
+	vp.writer.Stdout = os.Stdout
+	vp.writer.Stderr = os.Stderr
 
 	return vp.writer.Start()
 }

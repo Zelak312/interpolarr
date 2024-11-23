@@ -50,7 +50,7 @@ func main() {
 	// Config
 	fpsTarget := 60
 
-	videoInfo, err := GetVideoInfo("./Sword Art Online - S01E16 - Land of the Fairies Bluray-1080p.mkv")
+	videoInfo, err := GetVideoInfo("./input1.mp4")
 	if err != nil {
 		panic(err)
 	}
