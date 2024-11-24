@@ -55,15 +55,13 @@ RUN ./configure \
 
 ######################################################
 
-FROM golang:1.23.0-bullseye AS golang-base
+FROM golang:1.23.0-bullseye AS rife-bindings
 
 RUN apt-get update && apt-get install -y \
     cmake \
     libvulkan-dev
 
 WORKDIR /app
-COPY go.work go.work.sum ./
-COPY interpolarr/ interpolarr/
 COPY rife-ncnn-vulkan-go/ rife-ncnn-vulkan-go/
 
 # Build go bindings
@@ -72,11 +70,22 @@ RUN cd rife-ncnn-vulkan-go/rife-wrapper && \
     cd build && \
     make -j$(nproc)
 
+######################################################
+
+FROM golang:1.23.0-bullseye AS golang-base
+
+RUN apt-get update && apt-get install -y \
+    libvulkan-dev
+
+WORKDIR /app
+COPY go.work go.work.sum ./
+COPY interpolarr/ interpolarr/
+COPY rife-ncnn-vulkan-go/ rife-ncnn-vulkan-go/
+COPY --from=rife-bindings /app/rife-ncnn-vulkan-go/rife-wrapper/build /app/rife-ncnn-vulkan-go/rife-wrapper/build
+
 # Build interpolarr
 RUN cd interpolarr && \
     go mod download && go build -tags=release -o interpolarr .
-
-ENTRYPOINT ["/bin/sh"]
 
 ######################################################
 
@@ -118,6 +127,7 @@ COPY --from=golang-base /app/interpolarr/interpolarr /interpolarr/interpolarr
 COPY interpolarr/entrypoint.sh ./
 COPY interpolarr/.env.docker ./
 COPY interpolarr/docker_default.yml ./config.yml
+RUN chmod +x ./entrypoint.sh
 
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 ENV NVIDIA_VISIBLE_DEVICES=all
