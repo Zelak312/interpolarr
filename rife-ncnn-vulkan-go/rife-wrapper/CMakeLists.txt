@@ -1,6 +1,11 @@
 cmake_policy(SET CMP0091 NEW)
+cmake_policy(SET CMP0077 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0091 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+set(BUILD_SHARED_LIBS OFF)
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 
 project(rife-ncnn-vulkan-go)
 
@@ -10,10 +15,16 @@ set(CMAKE_CXX_FLAGS_RELEASE_INIT "-Wall")
 
 option(USE_SYSTEM_NCNN "build with system libncnn" OFF)
 option(USE_STATIC_MOLTENVK "link moltenvk static library" OFF)
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+option(NCNN_SHARED_LIB "Build shared library" OFF)
+set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
 
 find_package(Threads)
 find_package(OpenMP)
+set(CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
+set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib .so .dylib ${CMAKE_FIND_LIBRARY_SUFFIXES})
 find_package(Vulkan REQUIRED)
+set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
 
 # Go requires position independent code
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -59,6 +70,16 @@ if(ipo_supported)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 else()
   message(WARNING "IPO is not supported: ${ipo_supported_output}")
+endif()
+
+if(MSVC)
+    foreach(flag_var
+        CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+        if(${flag_var} MATCHES "/MD")
+            string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+        endif()
+    endforeach()
 endif()
 
 if(USE_SYSTEM_NCNN)
@@ -114,18 +135,22 @@ if(NOT USE_SYSTEM_NCNN)
     )
   endif()
 
+  option(NCNN_SHARED_LIB "" OFF)
+  option(NCNN_ENABLE_LTO "" ON)
   option(NCNN_INSTALL_SDK "" OFF)
   option(NCNN_PIXEL_ROTATE "" OFF)
   option(NCNN_PIXEL_AFFINE "" OFF)
   option(NCNN_PIXEL_DRAWING "" OFF)
   option(NCNN_VULKAN "" ON)
-  option(NCNN_VULKAN_ONLINE_SPIRV "" ON)
+  option(NCNN_VULKAN_ONLINE_SPIRV "" OFF)
+  option(NCNN_FORCE_INLINE_SPIRV "" ON)
+  option(NCNN_SYSTEM_GLSLANG "" OFF) 
   option(NCNN_BUILD_BENCHMARK "" OFF)
   option(NCNN_BUILD_TESTS "" OFF)
   option(NCNN_BUILD_TOOLS "" OFF)
   option(NCNN_BUILD_EXAMPLES "" OFF)
-  option(NCNN_DISABLE_RTTI "" ON)
-  option(NCNN_DISABLE_EXCEPTION "" ON)
+  option(NCNN_DISABLE_RTTI "" OFF)
+  option(NCNN_DISABLE_EXCEPTION "" OFF)
   option(NCNN_INT8 "" OFF)
   option(NCNN_SIMPLEVK "" OFF)
 
@@ -273,7 +298,7 @@ if(USE_STATIC_MOLTENVK)
 endif()
 
 # Create shared library for Go bindings
-add_library(rife_ncnn_vulkan_wrapper SHARED
+add_library(rife_ncnn_vulkan_wrapper STATIC
     rife_c_wrapper.cpp
     rife-ncnn-vulkan/src/rife.cpp
     rife-ncnn-vulkan/src/warp.cpp
@@ -281,8 +306,29 @@ add_library(rife_ncnn_vulkan_wrapper SHARED
 
 add_dependencies(rife_ncnn_vulkan_wrapper generate-spirv)
 target_compile_options(rife_ncnn_vulkan_wrapper PUBLIC -fexceptions)
+set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
-target_link_libraries(rife_ncnn_vulkan_wrapper ${RIFE_LINK_LIBRARIES})
+target_link_libraries(rife_ncnn_vulkan_wrapper 
+    PRIVATE
+    ncnn
+    ${Vulkan_LIBRARY}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${OpenMP_CXX_LIBRARIES}
+    -static-libgcc
+    -static-libstdc++
+    -l:libglslang.a
+    -l:libSPIRV.a
+    -l:libMachineIndependent.a
+    -l:libOSDependent.a
+    -l:libOGLCompiler.a
+    -l:libGenericCodeGen.a
+)
+
+# Make sure static linking is enforced
+set_target_properties(rife_ncnn_vulkan_wrapper PROPERTIES
+    LINK_SEARCH_START_STATIC ON
+    LINK_SEARCH_END_STATIC ON
+)
 
 # # Install the shared library
 # install(TARGETS rife_ncnn_vulkan_wrapper

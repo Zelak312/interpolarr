@@ -12,8 +12,9 @@ import (
 // #include <stdlib.h>
 // #include <string.h>
 // #cgo CFLAGS: -I${SRCDIR}/rife-wrapper
-// #cgo LDFLAGS: -L${SRCDIR}/rife-wrapper/build -lrife_ncnn_vulkan_wrapper
-// #cgo LDFLAGS: -Wl,-rpath=${SRCDIR}/rife-wrapper/build
+// #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/rife-wrapper/build -L${SRCDIR}/rife-wrapper/build/rife-ncnn-vulkan/src/ncnn/src -L${SRCDIR}/rife-wrapper/build/rife-ncnn-vulkan/src/ncnn/glslang/glslang -L${SRCDIR}/rife-wrapper/build/rife-ncnn-vulkan/src/ncnn/glslang/SPIRV -L${SRCDIR}/rife-wrapper/build/rife-ncnn-vulkan/src/ncnn/glslang/glslang/OSDependent/Unix -L${SRCDIR}/rife-wrapper/build/rife-ncnn-vulkan/src/ncnn/glslang/OGLCompilersDLL -l:librife_ncnn_vulkan_wrapper.a -l:libncnn.a -l:libglslang.a -l:libSPIRV.a -l:libMachineIndependent.a -l:libOSDependent.a -l:libOGLCompiler.a -l:libGenericCodeGen.a -lvulkan -fopenmp -static-libgcc -static-libstdc++ -lstdc++ -lm -ldl -lpthread
+// #cgo windows LDFLAGS: -L${SRCDIR}/rife-wrapper/build -lrife_ncnn_vulkan_wrapper -lvulkan-1 -lstdc++ -lm
+// #cgo darwin LDFLAGS: -L${SRCDIR}/rife-wrapper/build -l:librife_ncnn_vulkan_wrapper.a -framework Vulkan -lstdc++ -lm
 // #include "rife_c_wrapper.h"
 import "C"
 
