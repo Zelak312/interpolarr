@@ -3,12 +3,16 @@ package main
 import (
 	"context"
 	"embed"
-	"io"
-	"math"
+	"flag"
+	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 
-	"github.com/Zelak312/rife-ncnn-vulkan-go"
+	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -49,207 +53,93 @@ func setupLoggers(config *Config) {
 var viewFiles embed.FS
 
 func main() {
-	// Config
-	fpsTarget := 60
-
-	ctx, _ := context.WithCancel(context.Background())
-	videoInfo, _, err := GetVideoInfo(ctx, "./input1.mp4")
+	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
+	flag.Parse()
+	config, err := GetConfig(*configPath)
 	if err != nil {
-		panic(err)
+		panic("Error get config: " + err.Error())
 	}
 
-	targetFrameCount := int64(float64(videoInfo.FrameCount) / videoInfo.FrameRate * float64(fpsTarget))
-	scale := float64(videoInfo.FrameCount) / float64(targetFrameCount)
+	setupLoggers(&config)
+	log.WithFields(StructFields(config)).Debug("Parsed config")
+	if *config.DeleteInputFileWhenFinished {
+		log.Warn("DeleteInputFileWhenFinished is ON, it will delete the input file when finished!!!")
+	}
 
-	// RIFE
-	config := rife.DefaultConfig(videoInfo.Width, videoInfo.Height)
-	// Create RIFE instance
-	r, err := rife.New(config)
+	sqlite = NewSqlite(config.DatabasePath)
+	sqlite.RunMigrations()
+
+	videos, err := sqlite.GetVideos()
 	if err != nil {
-		panic(err)
+		log.Panic("Error getting videos: ", err)
 	}
-	defer r.Close()
-	// Load model
-	err = r.LoadModel("/home/zelak/space/rife/rife-v4.24")
+
+	hub, err = NewHub()
 	if err != nil {
-		panic(err)
+		log.Panic("error creating the hub: ", err)
 	}
 
-	// PROCESS
-	vp, err := NewVideoProcessor(videoInfo)
+	go hub.Run()
+	gQueue, err = NewQueue(videos, hub)
 	if err != nil {
-		panic(err)
+		log.Panic("Error creating the queue: ", err)
 	}
 
-	// Start reading frames
-	if err := vp.StartReading(ctx); err != nil {
-		panic(err)
+	initGin()
+	r := gin.Default()
+	r.Use(LoggerMiddleware())
+
+	// UI
+	r.Use(static.Serve("/", static.EmbedFolder(viewFiles, "views")))
+
+	// API
+	api := r.Group("/api")
+	{
+		api.GET("/ping", ping)
+
+		api.GET("/queue", listVideoQueue)
+		api.POST("/queue", addVideoToQueue)
+		api.DELETE("/queue/:id", delVideoToQueue)
+
+		api.GET("/workers", listWorkers)
+
+		api.GET("/failed_videos", listFailedVideos)
+
+		api.GET("/ws", func(c *gin.Context) {
+			hub.HandleConnections(c)
+		})
 	}
 
-	// Start writing at 2x framerate
-	if err := vp.StartWriting(ctx, "output2.mkv", float64(fpsTarget)); err != nil {
-		panic(err)
-	}
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	sigs := make(chan os.Signal, 1)
+	poolWorker = NewPoolWorker(ctx, &gQueue, &config, hub)
 
-	defer vp.Close()
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		log.Info("Signal received: ", sig, " shuting down")
+		ctxCancel()
 
-	// Read first frame
-	frame1, err := vp.ReadFrame()
+		timer := time.NewTimer(time.Second * 30)
+		go func() {
+			<-timer.C
+			log.Info("Taking too long to shutdown, exiting forcefully")
+			os.Exit(1)
+		}()
+
+		poolWorker.waitGroup.Wait()
+		os.Exit(1)
+	}()
+
+	// Start running things
+	go poolWorker.RunDispatcherBlocking()
+
+	log.Infof("Starting dashboard and api on %s:%d", config.BindAddress, config.Port)
+	err = r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
 	if err != nil {
-		panic(err)
-	}
-
-	// Read second frame
-	frame2, err := vp.ReadFrame()
-	if err != nil {
-		panic(err)
-	}
-
-	currentIdx := int64(0) // Current base frame index
-
-	for i := int64(0); i < targetFrameCount; i++ {
-		// Calculate frame position and timestep
-		fx := float64(i) * scale
-		sx := int64(math.Floor(fx))
-		timestep := float32(fx - float64(sx))
-
-		// Handle bounds
-		if sx < 0 {
-			sx = 0
-			timestep = 0
-		}
-		if sx >= videoInfo.FrameCount-1 {
-			sx = videoInfo.FrameCount - 2
-			timestep = 1
-		}
-
-		// Read frames until we reach the needed base frame
-		for currentIdx < sx {
-			frame1 = frame2
-			frame2, err = vp.ReadFrame()
-			if err != nil {
-				if err == io.EOF {
-					// TODO warn on this
-					break
-				}
-
-				panic(err)
-			}
-			currentIdx++
-		}
-
-		// Generate and write frame
-		if timestep == 0 {
-			// Direct frame
-			if err := vp.WriteFrame(frame1); err != nil {
-				panic(err)
-			}
-		} else {
-			// Interpolated frame
-			interpolated, err := r.InterpolateBGR(frame1.Data, frame2.Data, timestep)
-			if err != nil {
-				panic(err)
-			}
-
-			if err := vp.WriteFrame(Frame{
-				Data:   interpolated,
-				Width:  vp.Width(),
-				Height: vp.Height(),
-			}); err != nil {
-				panic(err)
-			}
-		}
+		log.Panic("Error running web server: ", err)
 	}
 }
-
-// func main() {
-// 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
-// 	flag.Parse()
-// 	config, err := GetConfig(*configPath)
-// 	if err != nil {
-// 		panic("Error get config: " + err.Error())
-// 	}
-
-// 	setupLoggers(&config)
-// 	log.WithFields(StructFields(config)).Debug("Parsed config")
-// 	if *config.DeleteInputFileWhenFinished {
-// 		log.Warn("DeleteInputFileWhenFinished is ON, it will delete the input file when finished!!!")
-// 	}
-
-// 	sqlite = NewSqlite(config.DatabasePath)
-// 	sqlite.RunMigrations()
-
-// 	videos, err := sqlite.GetVideos()
-// 	if err != nil {
-// 		log.Panic("Error getting videos: ", err)
-// 	}
-
-// 	hub, err = NewHub()
-// 	if err != nil {
-// 		log.Panic("error creating the hub: ", err)
-// 	}
-
-// 	go hub.Run()
-// 	gQueue, err = NewQueue(videos, hub)
-// 	if err != nil {
-// 		log.Panic("Error creating the queue: ", err)
-// 	}
-
-// 	initGin()
-// 	r := gin.Default()
-// 	r.Use(LoggerMiddleware())
-
-// 	// UI
-// 	r.Use(static.Serve("/", static.EmbedFolder(viewFiles, "views")))
-
-// 	// API
-// 	api := r.Group("/api")
-// 	{
-// 		api.GET("/ping", ping)
-
-// 		api.GET("/queue", listVideoQueue)
-// 		api.POST("/queue", addVideoToQueue)
-// 		api.DELETE("/queue/:id", delVideoToQueue)
-
-// 		api.GET("/workers", listWorkers)
-
-// 		api.GET("/failed_videos", listFailedVideos)
-
-// 		api.GET("/ws", func(c *gin.Context) {
-// 			hub.HandleConnections(c)
-// 		})
-// 	}
-
-// 	ctx, ctxCancel := context.WithCancel(context.Background())
-// 	sigs := make(chan os.Signal, 1)
-// 	poolWorker = NewPoolWorker(ctx, &gQueue, &config, hub)
-
-// 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-// 	go func() {
-// 		sig := <-sigs
-// 		log.Info("Signal received: ", sig, " shuting down")
-// 		ctxCancel()
-
-// 		timer := time.NewTimer(time.Second * 30)
-// 		go func() {
-// 			<-timer.C
-// 			log.Info("Taking too long to shutdown, exiting forcefully")
-// 			os.Exit(1)
-// 		}()
-
-// 		poolWorker.waitGroup.Wait()
-// 		os.Exit(1)
-// 	}()
-
-// 	// Start running things
-// 	go poolWorker.RunDispatcherBlocking()
-
-// 	log.Infof("Starting dashboard and api on %s:%d", config.BindAddress, config.Port)
-// 	err = r.Run(fmt.Sprintf("%s:%d", config.BindAddress, config.Port))
-// 	if err != nil {
-// 		log.Panic("Error running web server: ", err)
-// 	}
-// }
 
 func ping(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{

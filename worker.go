@@ -2,8 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
+	"io"
+	"math"
+	"os"
+	"path"
 	"sync"
 
+	"github.com/Zelak312/rife-ncnn-vulkan-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -78,77 +84,77 @@ func (w *Worker) start() {
 }
 
 func (w *Worker) doWork(video *Video) error {
-	// output, processVideoOutput := w.processVideo(video)
-	// if w.poolWorker.ctx.Err() != nil {
-	// 	// The context is cancelled, just return
-	// 	// it's handled in start
-	// 	return nil
-	// }
+	output, processVideoOutput := w.processVideo(video)
+	if w.poolWorker.ctx.Err() != nil {
+		// The context is cancelled, just return
+		// it's handled in start
+		return nil
+	}
 
-	// if processVideoOutput.err != nil {
-	// w.handleProcessVideoError(video, output, &processVideoOutput)
-	// Error was handled already
-	// return nil
-	// }
+	if processVideoOutput.err != nil {
+		w.handleProcessVideoError(video, output, &processVideoOutput)
+		// Error was handled already
+		return nil
+	}
 
-	// if processVideoOutput.skip && *w.poolWorker.config.CopyFileToDestinationOnSkip {
-	// 	w.logger.WithField("srcPath", video.Path).
-	// 		WithField("destPath", video.OutputPath).
-	// 		Debug("Copying file to destination since it has been skipped")
-	// 	ok, err := IsSamePath(video.Path, video.OutputPath)
-	// 	if err != nil {
-	// 		w.logger.Error("Failed to match same path: ", err)
-	// 		return err
-	// 	}
+	if processVideoOutput.skip && *w.poolWorker.config.CopyFileToDestinationOnSkip {
+		w.logger.WithField("srcPath", video.Path).
+			WithField("destPath", video.OutputPath).
+			Debug("Copying file to destination since it has been skipped")
+		ok, err := IsSamePath(video.Path, video.OutputPath)
+		if err != nil {
+			w.logger.Error("Failed to match same path: ", err)
+			return err
+		}
 
-	// 	if !ok {
-	// 		err := CopyFile(video.Path, video.OutputPath)
-	// 		if err != nil {
-	// 			w.logger.Error("Failed to copy file to destination: ", err)
-	// 			return err
-	// 		}
+		if !ok {
+			err := CopyFile(video.Path, video.OutputPath)
+			if err != nil {
+				w.logger.Error("Failed to copy file to destination: ", err)
+				return err
+			}
 
-	// 		w.logger.Info("Video file copied sucessfully")
-	// 	} else {
-	// 		w.logger.Warn("Can't copy file with same path as output path")
-	// 		return err
-	// 	}
-	// }
+			w.logger.Info("Video file copied sucessfully")
+		} else {
+			w.logger.Warn("Can't copy file with same path as output path")
+			return err
+		}
+	}
 
-	// if processVideoOutput.videoNotFound {
-	// w.logger.Error("Video to process wasn't found: ", video.Path)
-	// notFoundErr := errors.New("source video not found")
-	// w.failVideo(video, output, notFoundErr)
-	// return notFoundErr
-	// }
+	if processVideoOutput.videoNotFound {
+		w.logger.Error("Video to process wasn't found: ", video.Path)
+		notFoundErr := errors.New("source video not found")
+		w.failVideo(video, output, notFoundErr)
+		return notFoundErr
+	}
 
-	// err := sqlite.MarkVideoAsDone(video)
-	// if err != nil {
-	// w.logger.Error("Failed to mark video as done: ", err)
-	// return err
-	// }
+	err := sqlite.MarkVideoAsDone(video)
+	if err != nil {
+		w.logger.Error("Failed to mark video as done: ", err)
+		return err
+	}
 
-	// if *w.poolWorker.config.DeleteInputFileWhenFinished && !processVideoOutput.outputFileAlreadyExist {
-	// w.logger.Debug("Deleting input file")
-	// ok, err := IsSamePath(video.Path, video.OutputPath)
-	// if err != nil {
-	// w.logger.Error("Error while looking up same path: ", err)
-	// return err
-	// }
+	if *w.poolWorker.config.DeleteInputFileWhenFinished && !processVideoOutput.outputFileAlreadyExist {
+		w.logger.Debug("Deleting input file")
+		ok, err := IsSamePath(video.Path, video.OutputPath)
+		if err != nil {
+			w.logger.Error("Error while looking up same path: ", err)
+			return err
+		}
 
-	// if !ok {
-	// 		err = os.Remove(video.Path)
-	// 		if err != nil {
-	// 			w.logger.WithFields(StructFields(video)).Error("Failed to delete vidoe: ", err)
-	// 		}
+		if !ok {
+			err = os.Remove(video.Path)
+			if err != nil {
+				w.logger.WithFields(StructFields(video)).Error("Failed to delete vidoe: ", err)
+			}
 
-	// 		w.logger.WithField("file", video.Path).Info("Deleted input file")
-	// 	} else {
-	// 		w.logger.WithFields(StructFields(video)).Warn("Detected same path with delete input file option, not deleting anything!")
-	// 	}
-	// }
+			w.logger.WithField("file", video.Path).Info("Deleted input file")
+		} else {
+			w.logger.WithFields(StructFields(video)).Warn("Detected same path with delete input file option, not deleting anything!")
+		}
+	}
 
-	// w.logger.Info("Finished processing video")
+	w.logger.Info("Finished processing video")
 	return nil
 }
 
@@ -191,150 +197,177 @@ func (w *Worker) failVideo(video *Video, output string, failError error) error {
 	return nil
 }
 
-// func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
-// 	w.logger.WithFields(StructFields(video)).Info("Processing video")
+func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
+	w.logger.WithFields(StructFields(video)).Info("Processing video")
 
-// 	videoExist, err := FileExist(video.Path)
-// 	if err != nil {
-// 		return "", ProcessVideoOutput{}
-// 	}
+	videoExist, err := FileExist(video.Path)
+	if err != nil {
+		return "", ProcessVideoOutput{}
+	}
 
-// 	if !videoExist {
-// 		return "", ProcessVideoOutput{videoNotFound: true}
-// 	}
+	if !videoExist {
+		return "", ProcessVideoOutput{videoNotFound: true}
+	}
 
-// 	outputExist, err := FileExist(video.OutputPath)
-// 	if err != nil {
-// 		return "", ProcessVideoOutput{err: err}
-// 	}
+	outputExist, err := FileExist(video.OutputPath)
+	if err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
 
-// 	// TODO: I think deleting the output should be done
-// 	// right before the other output is going to be created
-// 	// Actually, future zelak here, I should do that yes
-// 	// but also use move somewhere, delete, then create the file
-// 	// so if there is an issue, I can move back the old file
-// 	// without loss
-// 	if outputExist && *w.poolWorker.config.DeleteOutputIfAlreadyExist {
-// 		w.logger.Debug("Output already exist, deleting file")
-// 		err = os.Remove(video.OutputPath)
-// 		if err != nil {
-// 			return "", ProcessVideoOutput{err: err}
-// 		}
-// 	} else if outputExist {
-// 		w.logger.Debug("Output already exist, skipping")
-// 		return "", ProcessVideoOutput{outputFileAlreadyExist: true}
-// 	}
+	// TODO: I think deleting the output should be done
+	// right before the other output is going to be created
+	// Actually, future zelak here, I should do that yes
+	// but also use move somewhere, delete, then create the file
+	// so if there is an issue, I can move back the old file
+	// without loss
+	if outputExist && *w.poolWorker.config.DeleteOutputIfAlreadyExist {
+		w.logger.Debug("Output already exist, deleting file")
+		err = os.Remove(video.OutputPath)
+		if err != nil {
+			return "", ProcessVideoOutput{err: err}
+		}
+	} else if outputExist {
+		w.logger.Debug("Output already exist, skipping")
+		return "", ProcessVideoOutput{outputFileAlreadyExist: true}
+	}
 
-// 	processFolderWorker := path.Join(w.poolWorker.config.ProcessFolder, fmt.Sprintf("worker_%d", w.workerInfo.ID))
-// 	if _, err := os.Stat(processFolderWorker); err == nil {
-// 		err := os.RemoveAll(processFolderWorker)
-// 		if err != nil {
-// 			return "", ProcessVideoOutput{err: err}
-// 		}
-// 	}
+	progressChan := make(chan float64)
+	defer close(progressChan)
+	go w.updateProgress(progressChan)
 
-// 	progressChan := make(chan float64)
-// 	defer close(progressChan)
-// 	go w.updateProgress(progressChan)
+	w.logger.Info("Getting video information")
+	w.updateStep("Getting video information")
+	videoInfo, output, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
+	if err != nil {
+		return output, ProcessVideoOutput{err: err}
+	}
 
-// 	w.logger.Info("Getting video fps and framecount")
-// 	w.updateStep("Getting FPS Framecount")
-// 	videoInfo, output, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
-// 	if err != nil {
-// 		return output, ProcessVideoOutput{err: err}
-// 	}
+	w.logger.Info("fps: ", videoInfo.FrameRate)
+	w.logger.Info("target fps: ", w.poolWorker.config.TargetFPS)
+	w.logger.Info("framecount: ", videoInfo.FrameCount)
 
-// 	w.logger.Info("fps: ", videoInfo.Fps)
-// 	w.logger.Info("target FPS: ", w.poolWorker.config.TargetFPS)
-// 	w.logger.Info("framecount: ", videoInfo.FrameCount)
+	if videoInfo.FrameRate >= w.poolWorker.config.TargetFPS {
+		w.logger.Info(`Video is already higher or equal to target FPS, skipping`)
+		return "", ProcessVideoOutput{skip: true}
+	}
 
-// 	if videoInfo.Fps >= w.poolWorker.config.TargetFPS {
-// 		w.logger.Info(`Video is already higher or equal to target FPS, skipping`)
-// 		return "", ProcessVideoOutput{skip: true}
-// 	}
+	targetFrameCount := int64(float64(videoInfo.FrameCount) / videoInfo.FrameRate * w.poolWorker.config.TargetFPS)
+	scale := float64(videoInfo.FrameCount) / float64(targetFrameCount)
+	w.logger.Info("Calculated frame target: ", targetFrameCount)
+	w.logger.Info("Calculated scale: ", scale)
 
-// 	targetFrameCount := int64(float64(videoInfo.FrameCount) / videoInfo.Fps * w.poolWorker.config.TargetFPS)
-// 	w.logger.Info("Calculated frame target: ", targetFrameCount)
+	// make sure the folder exist
+	baseOutputPath := path.Dir(video.OutputPath)
+	w.logger.WithField("baseOutputPath", baseOutputPath).
+		Debug("Creating output folder if it doesn't exist")
+	if _, err := os.Stat(baseOutputPath); err != nil {
+		err := os.MkdirAll(baseOutputPath, os.ModePerm)
+		if err != nil {
+			return "", ProcessVideoOutput{err: err}
+		}
+	}
 
-// 	w.logger.Debug("Creating worker folder if doesn't exist")
-// 	err = os.MkdirAll(processFolderWorker, os.ModePerm)
-// 	if err != nil {
-// 		return "", ProcessVideoOutput{err: err}
-// 	}
+	// Setup rife
+	w.logger.Info("Setup rife")
+	config := rife.DefaultConfig(videoInfo.Width, videoInfo.Height)
+	r, err := rife.New(config)
+	if err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
 
-// 	// Not used anymore but is needed for older rife models
-// 	// so keeping it here
-// 	// w.logger.Infof("Converting video to %g fps", p.con)
-// 	// fpsConversionOutput := path.Join(processFolderWorker, "video.mp4")
-// 	// output, err := ConvertVideoToFPS(p.ctx, p.config.FfmpegOptions, video.Path, fpsConversionOutput, targetFPS/2)
-// 	// if err != nil {
-// 	// 	return output, ProcessVideoOutput{err: err}
-// 	// }
+	defer r.Close()
+	err = r.LoadModel(w.poolWorker.config.ModelPath)
+	if err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
 
-// 	w.logger.Info("Extracting audio from the video")
-// 	w.updateStep("Extracting audio")
-// 	audioPath := path.Join(processFolderWorker, "audio.m4a")
-// 	output, err = ExtractAudio(w.poolWorker.ctx, video.Path, audioPath, progressChan)
-// 	if err != nil {
-// 		return output, ProcessVideoOutput{err: err}
-// 	}
+	// Setup ffmpeg processor
+	w.logger.Info("Setup ffmpeg processor")
+	vp, err := NewVideoProcessor(videoInfo)
+	if err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
 
-// 	w.logger.Debug("Creating frames folder")
-// 	framesFolder := path.Join(processFolderWorker, "frames")
-// 	err = os.Mkdir(framesFolder, os.ModePerm)
-// 	if err != nil {
-// 		return "", ProcessVideoOutput{err: err}
-// 	}
+	if err := vp.StartReading(w.poolWorker.ctx); err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
 
-// 	w.logger.Info("Extracting video frames")
-// 	w.updateStep("Extracting frames")
-// 	output, err = ExtractFrames(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions, video.Path, framesFolder, progressChan)
-// 	if err != nil {
-// 		return output, ProcessVideoOutput{err: err}
-// 	}
+	if err := vp.StartWriting(w.poolWorker.ctx, video.OutputPath, w.poolWorker.config.TargetFPS); err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
 
-// 	w.logger.Debug("Creating interpolation frames folder")
-// 	interpolatedFolder := path.Join(processFolderWorker, "interpolated_frames")
-// 	err = os.Mkdir(interpolatedFolder, os.ModePerm)
-// 	if err != nil {
-// 		return "", ProcessVideoOutput{err: err}
-// 	}
+	defer vp.Close()
+	frame1, err := vp.ReadFrame()
+	if err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
 
-// 	w.logger.Info("Interpolating video")
-// 	w.updateStep("Interpolating frames")
-// 	output, err = InterpolateVideo(w.poolWorker.ctx, w.poolWorker.config.RifeBinary, framesFolder, interpolatedFolder,
-// 		w.poolWorker.config.ModelPath, targetFrameCount, w.poolWorker.config.RifeExtraArguments, progressChan)
-// 	if err != nil {
-// 		return output, ProcessVideoOutput{err: err}
-// 	}
+	frame2, err := vp.ReadFrame()
+	if err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
 
-// 	// make sure the folder exist
-// 	baseOutputPath := path.Dir(video.OutputPath)
-// 	w.logger.WithField("baseOutputPath", baseOutputPath).
-// 		Debug("Creating output folder if it doesn't exist")
-// 	if _, err := os.Stat(baseOutputPath); err != nil {
-// 		err := os.MkdirAll(baseOutputPath, os.ModePerm)
-// 		if err != nil {
-// 			return "", ProcessVideoOutput{err: err}
-// 		}
-// 	}
+	w.logger.Info("Start inpterpolation loop")
+	w.updateStep("Interpolating frames")
+	currentIdx := int64(0)
+	for i := int64(0); i < targetFrameCount; i++ {
+		// Calculate frame position and timestep
+		fx := float64(i) * scale
+		sx := int64(math.Floor(fx))
+		timestep := float32(fx - float64(sx))
 
-// 	w.logger.Infof("Reconstructing video with audio and interpolated frames to %g fps", w.poolWorker.config.TargetFPS)
-// 	w.updateStep("Reconstructing video")
-// 	output, err = ConstructVideoToFPS(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions,
-// 		interpolatedFolder, audioPath, video.OutputPath, w.poolWorker.config.TargetFPS, progressChan)
-// 	if err != nil {
-// 		return output, ProcessVideoOutput{err: err}
-// 	}
+		// Handle bounds
+		if sx < 0 {
+			sx = 0
+			timestep = 0
+		}
+		if sx >= videoInfo.FrameCount-1 {
+			sx = videoInfo.FrameCount - 2
+			timestep = 1
+		}
 
-// 	w.logger.Debug("Removing worker folder")
-// 	err = os.RemoveAll(processFolderWorker)
-// 	if err != nil {
-// 		return "", ProcessVideoOutput{err: err}
-// 	}
+		// Read frames until we reach the needed base frame
+		for currentIdx < sx {
+			frame1 = frame2
+			frame2, err = vp.ReadFrame()
+			if err != nil {
+				if err == io.EOF {
+					// TODO warn on this
+					progressChan <- 100
+					break
+				}
 
-// 	return "", ProcessVideoOutput{}
-// }
+				return "", ProcessVideoOutput{err: err}
+			}
+			currentIdx++
+		}
+
+		// Generate and write frame
+		if timestep == 0 {
+			// Direct frame
+			if err := vp.WriteFrame(frame1); err != nil {
+				return "", ProcessVideoOutput{err: err}
+			}
+		} else {
+			// Interpolated frame
+			interpolated, err := r.InterpolateBGR(frame1.Data, frame2.Data, timestep)
+			if err != nil {
+				return "", ProcessVideoOutput{err: err}
+			}
+
+			if err := vp.WriteFrame(Frame{
+				Data:   interpolated,
+				Width:  vp.Width(),
+				Height: vp.Height(),
+			}); err != nil {
+				return "", ProcessVideoOutput{err: err}
+			}
+		}
+
+		progressChan <- float64(i) / float64(targetFrameCount) * 100
+	}
+	return "", ProcessVideoOutput{}
+}
 
 func (w *Worker) updateStep(step string) {
 	w.Lock()
