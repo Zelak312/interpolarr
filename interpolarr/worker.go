@@ -9,7 +9,7 @@ import (
 	"path"
 	"sync"
 
-	"github.com/Zelak312/rife-ncnn-vulkan-go"
+	"github.com/Zelak312/interpolarr/rife-ncnn-vulkan-go"
 	"github.com/sirupsen/logrus"
 )
 

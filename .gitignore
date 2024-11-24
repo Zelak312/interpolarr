@@ -25,13 +25,5 @@
 go.work
 
 # End of https://www.toptal.com/developers/gitignore/api/go
-.env
-config.yml
-logs
-process
-interpolarr.db
-interpolarr
-video
 .vscode
-tmp
-out.txt
+*/*.env
