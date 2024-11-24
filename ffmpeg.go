@@ -1,133 +1,239 @@
 package main
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
-	"path"
-	"regexp"
+	"io"
 	"strconv"
 	"strings"
 )
 
-var durationRegex = regexp.MustCompile(`Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})`)
+type FFProbeOutput struct {
+	Streams []struct {
+		Width          int    `json:"width"`
+		Height         int    `json:"height"`
+		FrameRate      string `json:"r_frame_rate"`
+		FrameCount     string `json:"nb_frames"`
+		FrameCountRead string `json:"nb_read_frames"`
+	} `json:"streams"`
+}
+
+type Frame struct {
+	Data   []byte
+	Width  int
+	Height int
+}
+
+type VideoProcessor struct {
+	videoInfo VideoInfo
+	frameSize int
+
+	// I/O handlers
+	reader *Command
+	writer *Command
+	stdin  io.WriteCloser
+	stdout io.ReadCloser
+}
 
 type VideoInfo struct {
-	Fps        float64
+	InputPath  string
+	Width      int
+	Height     int
+	FrameRate  float64
 	FrameCount int64
 }
 
-func appendHWAccelEncodeArgs(args []string, config FfmpegOptions) []string {
-	if config.HWAccelEncodeFlag != "" {
-		args = append(args, "-c:v", config.HWAccelEncodeFlag)
+func parseVideoInfoFFProbeOutput(output string) (*FFProbeOutput, error) {
+	var probeOutput FFProbeOutput
+	if err := json.Unmarshal([]byte(output), &probeOutput); err != nil {
+		return nil, fmt.Errorf("parsing probe output: %v\n%v", err, output)
 	}
 
-	return args
+	if len(probeOutput.Streams) == 0 {
+		return nil, fmt.Errorf("no video streams found")
+	}
+
+	return &probeOutput, nil
 }
 
 func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, string, error) {
-	cmd := NewCommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
-		"-show_entries", "stream=r_frame_rate,nb_read_frames", "-of", "csv=p=0", inputPath)
+	cmd := NewCommandContext(ctx, "ffprobe",
+		"-v", "error",
+		"-select_streams", "v:0",
+		"-show_entries", "stream=width,height,r_frame_rate,nb_frames",
+		"-of", "json",
+		inputPath)
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, output, err
 	}
 
-	parts := strings.Split(strings.TrimSpace(output), ",")
+	ffprobeOutput, err := parseVideoInfoFFProbeOutput(output)
+	if err != nil {
+		return nil, output, err
+	}
+
+	mainStream := ffprobeOutput.Streams[0]
+	parts := strings.Split(mainStream.FrameRate, "/")
 	if len(parts) != 2 {
-		return nil, "", fmt.Errorf("expected two parts in the output, got %d", len(parts))
+		return nil, output, fmt.Errorf("invalid framerate format")
 	}
 
-	// Parse the FPS using the parseFPS function.
-	fps, err := parseFPS(parts[0])
+	num, err := strconv.ParseFloat(parts[0], 32)
 	if err != nil {
-		return nil, "", err
+		return nil, output, fmt.Errorf("parsing framerate numerator: %v", err)
 	}
 
-	// Parse the frame count.
-	frameCount, err := strconv.ParseInt(parts[1], 10, 64)
+	den, err := strconv.ParseFloat(parts[1], 32)
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid frame count: %v", err)
+		return nil, output, fmt.Errorf("parsing framerate denominator: %v", err)
 	}
 
-	return &VideoInfo{Fps: fps, FrameCount: frameCount}, "", nil
-}
+	var videoInfo VideoInfo
+	videoInfo.InputPath = inputPath
+	videoInfo.Width = mainStream.Width
+	videoInfo.Height = mainStream.Height
+	videoInfo.FrameRate = num / den
 
-func ExtractAudio(ctx context.Context, inputPath string, outputPath string, progressChan chan<- float64) (string, error) {
-	cmd := NewCommandContext(ctx, "ffmpeg", "-i", inputPath, "-vn", "-acodec", "copy", "-progress", "pipe:2", outputPath)
-	go parseProgressFFmpeg(cmd, progressChan)
-	output, err := cmd.CombinedOutput()
-	return string(output), err
-}
-
-func ExtractFrames(ctx context.Context, config FfmpegOptions, inputPath string, outputPath string, progressChan chan<- float64) (string, error) {
-	outputPathTemplate := path.Join(outputPath, "frame_%08d.png")
-	args := []string{}
-	if config.HWAccelDecodeFlag != "" {
-		args = append(args, "-c:v", config.HWAccelDecodeFlag)
-	}
-
-	args = append(args, "-i", inputPath, "-fps_mode", "passthrough", "-progress", "pipe:2", outputPathTemplate)
-	cmd := NewCommandContext(ctx, "ffmpeg", args...)
-	go parseProgressFFmpeg(cmd, progressChan)
-	output, err := cmd.CombinedOutput()
-	return string(output), err
-}
-
-func ConstructVideoToFPS(ctx context.Context, config FfmpegOptions, inputPath string, audioPath string, outputPath string, fps float64, progressChan chan<- float64) (string, error) {
-	inputPathTemplate := path.Join(inputPath, "%08d.png")
-	args := []string{"-framerate", fmt.Sprintf("%g", fps), "-i", inputPathTemplate, "-i", audioPath, "-c:a", "copy"}
-	args = appendHWAccelEncodeArgs(args, config)
-	args = append(args, "-crf", "20", "-pix_fmt", "yuv420p", "-progress", "pipe:2", outputPath)
-	cmd := NewCommandContext(ctx, "ffmpeg", args...)
-	go parseProgressFFmpeg(cmd, progressChan)
-	output, err := cmd.CombinedOutput()
-	return string(output), err
-}
-
-func parseFPS(fpsFraction string) (float64, error) {
-	parts := strings.Split(fpsFraction, "/")
-	if len(parts) != 2 {
-		return 0, fmt.Errorf("invalid FPS format")
-	}
-
-	numerator, err := strconv.ParseFloat(parts[0], 64)
-	if err != nil {
-		return 0, err
-	}
-
-	denominator, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return numerator / denominator, nil
-}
-
-// TODO: handle errors in here
-func parseProgressFFmpeg(cmd *Command, progressChan chan<- float64) {
-	var totalDuration float64
-	scanner := bufio.NewScanner(cmd.stderrPipe)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// Capture the total duration from ffmpeg's initial output
-		if matches := durationRegex.FindStringSubmatch(line); matches != nil && totalDuration == 0 {
-			hours, _ := strconv.ParseFloat(matches[1], 64)
-			minutes, _ := strconv.ParseFloat(matches[2], 64)
-			seconds, _ := strconv.ParseFloat(matches[3], 64)
-			totalDuration = hours*3600 + minutes*60 + seconds
+	if mainStream.FrameCount != "" && mainStream.FrameCount != "N/A" {
+		// container already contains frame count, no need to count
+		frameCount, err := strconv.ParseInt(mainStream.FrameCount, 10, 64)
+		if err != nil {
+			return nil, output, err
 		}
 
-		// Parse the out_time_ms line to calculate progress
-		if strings.HasPrefix(line, "out_time_ms=") {
-			outTimeMs, _ := strconv.ParseFloat(strings.Split(line, "=")[1], 64)
-			progressSeconds := outTimeMs / 1000000.0 // Convert ms to seconds
+		videoInfo.FrameCount = frameCount
+		return &videoInfo, "", nil
+	}
 
-			// Calculate progress percentage
-			if totalDuration > 0 {
-				progressChan <- (progressSeconds / totalDuration) * 100
-			}
+	// container doesn't have frame count, counting frames
+	cmd = NewCommandContext(ctx, "ffprobe",
+		"-v", "error",
+		"-select_streams", "v:0",
+		"-count_frames",
+		"-show_entries", "stream=nb_read_frames",
+		"-of", "json",
+		inputPath)
+
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return nil, output, err
+	}
+
+	ffprobeCountOutput, err := parseVideoInfoFFProbeOutput(output)
+	if err != nil {
+		return nil, output, err
+	}
+
+	frameCount, err := strconv.ParseInt(ffprobeCountOutput.Streams[0].FrameCountRead, 10, 64)
+	if err != nil {
+		return nil, output, err
+	}
+
+	videoInfo.FrameCount = frameCount
+	return &videoInfo, output, nil
+}
+
+func NewVideoProcessor(videoInfo *VideoInfo) (*VideoProcessor, error) {
+	frameSize := videoInfo.Width * videoInfo.Height * 3
+
+	return &VideoProcessor{
+		videoInfo: *videoInfo,
+		frameSize: frameSize,
+	}, nil
+}
+
+func (vp *VideoProcessor) StartReading(ctx context.Context) error {
+	vp.reader = NewCommandContext(ctx, "ffmpeg",
+		"-hwaccel", "cuda",
+		"-i", vp.videoInfo.InputPath,
+		"-f", "rawvideo",
+		"-pix_fmt", "rgb24",
+		"pipe:1")
+
+	vp.reader.DisableOutputBuffer()
+	stdout, err := vp.reader.GetStdout()
+	if err != nil {
+		return fmt.Errorf("creating stdout pipe: %v", err)
+	}
+
+	vp.stdout = stdout
+	return vp.reader.Start()
+}
+
+func (vp *VideoProcessor) StartWriting(ctx context.Context, outputPath string, outputFrameRate float64) error {
+	vp.writer = NewCommandContext(ctx, "ffmpeg",
+		"-f", "rawvideo",
+		"-pix_fmt", "rgb24",
+		"-video_size", fmt.Sprintf("%dx%d", vp.videoInfo.Width, vp.videoInfo.Height),
+		"-framerate", fmt.Sprintf("%f", outputFrameRate),
+		"-i", "pipe:0",
+		"-i", vp.videoInfo.InputPath,
+		"-c:v", "h264_nvenc",
+		"-c:a", "copy",
+		"-crf", "20",
+		"-pix_fmt", "yuv420p",
+		outputPath)
+
+	stdin, err := vp.writer.GetStdin()
+	if err != nil {
+		return fmt.Errorf("creating stdout pipe: %v", err)
+	}
+
+	vp.stdin = stdin
+	return vp.writer.Start()
+}
+
+func (vp *VideoProcessor) ReadFrame() (Frame, error) {
+	buf := make([]byte, vp.frameSize)
+	_, err := io.ReadFull(vp.stdout, buf)
+	if err != nil {
+		return Frame{}, err
+	}
+
+	return Frame{
+		Data:   buf,
+		Width:  vp.videoInfo.Width,
+		Height: vp.videoInfo.Height,
+	}, nil
+}
+
+func (vp *VideoProcessor) WriteFrame(frame Frame) error {
+	_, err := vp.stdin.Write(frame.Data)
+	return err
+}
+
+func (vp *VideoProcessor) Close() error {
+	var errors []error
+
+	if vp.stdin != nil {
+		if err := vp.stdin.Close(); err != nil {
+			errors = append(errors, fmt.Errorf("closing stdin: %v", err))
 		}
 	}
+
+	if vp.stdout != nil {
+		if err := vp.stdout.Close(); err != nil {
+			errors = append(errors, fmt.Errorf("closing stdout: %v", err))
+		}
+	}
+
+	if vp.writer != nil {
+		if err := vp.writer.Wait(); err != nil {
+			errors = append(errors, fmt.Errorf("waiting for writer: %v", err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("multiple errors during close: %v", errors)
+	}
+	return nil
 }
+
+// Getters for video properties
+func (vp *VideoProcessor) Width() int         { return vp.videoInfo.Width }
+func (vp *VideoProcessor) Height() int        { return vp.videoInfo.Height }
+func (vp *VideoProcessor) FrameRate() float64 { return vp.videoInfo.FrameRate }
+func (vp *VideoProcessor) FrameSize() int     { return vp.frameSize }

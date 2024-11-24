@@ -1,8 +1,11 @@
 module github.com/Zelak312/interpolarr
 
-go 1.21.5
+go 1.23.0
+
+replace github.com/Zelak312/rife-ncnn-vulkan-go => /home/zelak/git/Zelak312/rife-ncnn-vulkan-go
 
 require (
+	github.com/Zelak312/rife-ncnn-vulkan-go v0.0.0-00010101000000-000000000000
 	github.com/gin-contrib/static v1.1.2
 	github.com/gin-gonic/gin v1.9.1
 	github.com/gorilla/websocket v1.5.3
