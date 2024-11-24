@@ -116,6 +116,7 @@ RUN apt-get update && apt-get install -y \
     # Miscellaneous tools
     wget \             
     unzip \
+    dos2unix \
     gosu \
     # Cleanup package manager cache to reduce image size
     && rm -rf /var/lib/apt/lists/*
@@ -127,7 +128,7 @@ COPY --from=golang-base /app/interpolarr/interpolarr /interpolarr/interpolarr
 COPY interpolarr/entrypoint.sh ./
 COPY interpolarr/.env.docker ./
 COPY interpolarr/docker_default.yml ./config.yml
-RUN chmod +x ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh && dos2unix ./entrypoint.sh
 
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 ENV NVIDIA_VISIBLE_DEVICES=all
