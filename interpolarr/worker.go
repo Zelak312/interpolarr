@@ -41,6 +41,28 @@ func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *W
 	}
 }
 
+func ShouldUseTempFile(video *Video, deleteOutputIfAlreadyExist bool) (bool, error) {
+	samePath, err := IsSamePath(video.Path, video.OutputPath)
+	if err != nil {
+		return false, err
+	}
+
+	if samePath {
+		return true, nil
+	}
+
+	outputExist, err := PathExist(video.OutputPath)
+	if err != nil {
+		return false, err
+	}
+
+	if outputExist && deleteOutputIfAlreadyExist {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func (w *Worker) start() {
 	for video := range w.poolWorker.workChannel {
 		w.Lock()
@@ -117,7 +139,6 @@ func (w *Worker) doWork(video *Video) error {
 			w.logger.Info("Video file copied sucessfully")
 		} else {
 			w.logger.Warn("Can't copy file with same path as output path")
-			return err
 		}
 	}
 
@@ -200,7 +221,7 @@ func (w *Worker) failVideo(video *Video, output string, failError error) error {
 func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	w.logger.WithFields(StructFields(video)).Info("Processing video")
 
-	videoExist, err := FileExist(video.Path)
+	videoExist, err := PathExist(video.Path)
 	if err != nil {
 		return "", ProcessVideoOutput{}
 	}
@@ -209,26 +230,42 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		return "", ProcessVideoOutput{videoNotFound: true}
 	}
 
-	outputExist, err := FileExist(video.OutputPath)
+	baseOutputPath := path.Dir(video.OutputPath)
+	w.logger.WithField("baseOutputPath", baseOutputPath).
+		Debug("Creating output folder if it doesn't exist")
+	outputBasePathExist, err := PathExist(video.OutputPath)
 	if err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	// TODO: I think deleting the output should be done
-	// right before the other output is going to be created
-	// Actually, future zelak here, I should do that yes
-	// but also use move somewhere, delete, then create the file
-	// so if there is an issue, I can move back the old file
-	// without loss
-	if outputExist && *w.poolWorker.config.DeleteOutputIfAlreadyExist {
-		w.logger.Debug("Output already exist, deleting file")
-		err = os.Remove(video.OutputPath)
+	useTmpFile := false
+	outputPath := video.OutputPath
+	if !outputBasePathExist {
+		err := os.MkdirAll(baseOutputPath, os.ModePerm)
 		if err != nil {
 			return "", ProcessVideoOutput{err: err}
 		}
-	} else if outputExist {
-		w.logger.Debug("Output already exist, skipping")
-		return "", ProcessVideoOutput{outputFileAlreadyExist: true}
+	} else {
+		useTmpFile, err = ShouldUseTempFile(video, *w.poolWorker.config.DeleteOutputIfAlreadyExist)
+		if err != nil {
+			return "", ProcessVideoOutput{err: err}
+		}
+	}
+
+	if useTmpFile {
+		w.logger.Debug("Using tmp file")
+		outputPath = outputPath + ".tmp"
+
+		log.Debugf("checking tmp path: %s", outputPath)
+		videoTmpExist, err := PathExist(outputPath)
+		if err != nil {
+			return "", ProcessVideoOutput{}
+		}
+
+		if videoTmpExist {
+			log.Warn("Tmp video file output already exist, skipping")
+			return "", ProcessVideoOutput{skip: true}
+		}
 	}
 
 	progressChan := make(chan float64)
@@ -256,17 +293,6 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 	w.logger.Info("Calculated frame target: ", targetFrameCount)
 	w.logger.Info("Calculated scale: ", scale)
 
-	// make sure the folder exist
-	baseOutputPath := path.Dir(video.OutputPath)
-	w.logger.WithField("baseOutputPath", baseOutputPath).
-		Debug("Creating output folder if it doesn't exist")
-	if _, err := os.Stat(baseOutputPath); err != nil {
-		err := os.MkdirAll(baseOutputPath, os.ModePerm)
-		if err != nil {
-			return "", ProcessVideoOutput{err: err}
-		}
-	}
-
 	// Setup rife
 	w.logger.Info("Setup rife")
 	config := rife.DefaultConfig(videoInfo.Width, videoInfo.Height)
@@ -283,7 +309,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 
 	// Setup ffmpeg processor
 	w.logger.Info("Setup ffmpeg processor")
-	vp, err := NewVideoProcessor(videoInfo, w.poolWorker.config.FfmpegOptions)
+	vp, err := NewVideoProcessor(videoInfo, w.poolWorker.config.FFmpegOptions)
 	if err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}
@@ -292,7 +318,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	if err := vp.StartWriting(w.poolWorker.ctx, video.OutputPath, w.poolWorker.config.TargetFPS); err != nil {
+	if err := vp.StartWriting(w.poolWorker.ctx, outputPath, w.poolWorker.config.TargetFPS); err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}
 
@@ -366,6 +392,15 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 
 		progressChan <- float64(i) / float64(targetFrameCount) * 100
 	}
+
+	if useTmpFile {
+		w.logger.Debug("Moving tmp file to output path since everything was succesful")
+		err := RenameOverwrite(outputPath, video.OutputPath)
+		if err != nil {
+			w.logger.Errorf("Error when renaming overwrite: %v", err)
+		}
+	}
+
 	return "", ProcessVideoOutput{}
 }
 

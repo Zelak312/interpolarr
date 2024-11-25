@@ -16,7 +16,7 @@ type Config struct {
 	ModelPath                   string        `yaml:"modelPath"`
 	Workers                     int           `yaml:"workers"`
 	TargetFPS                   float64       `yaml:"targetFPS"`
-	FfmpegOptions               FFmpegOptions `yaml:"ffmpegOptions"`
+	FFmpegOptions               FFmpegOptions `yaml:"ffmpegOptions"`
 	DeleteInputFileWhenFinished *bool         `yaml:"deleteInputFileWhenFinished"`
 	DeleteOutputIfAlreadyExist  *bool         `yaml:"deleteOutputIfAlreadyExist"`
 	CopyFileToDestinationOnSkip *bool         `yaml:"copyFileToDestinationOnSkip"`
