@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Zelak312/interpolarr/rife-ncnn-vulkan-go"
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -53,8 +54,16 @@ func setupLoggers(config *Config) {
 var viewFiles embed.FS
 
 func main() {
+	// Parse arguments
 	configPath := flag.String("config_path", "./config.yml", "Path to the config yml file")
+	vulkanShowGpus := flag.Bool("show-gpus", false, "Display available GPUs For Vulkan")
 	flag.Parse()
+
+	if *vulkanShowGpus {
+		fmt.Printf("GPU count: %d\n", rife.GetGPUCount())
+		os.Exit(0)
+	}
+
 	config, err := GetConfig(*configPath)
 	if err != nil {
 		panic("Error get config: " + err.Error())

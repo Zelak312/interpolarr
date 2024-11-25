@@ -55,24 +55,37 @@ RUN ./configure \
 
 ######################################################
 
-FROM golang:1.21-alpine AS golang-base
+FROM golang:1.23.0-bullseye AS rife-bindings
+
+RUN apt-get update && apt-get install -y \
+    cmake \
+    libvulkan-dev
 
 WORKDIR /app
+COPY rife-ncnn-vulkan-go/ rife-ncnn-vulkan-go/
 
-# Copy go.mod and go.sum files
-COPY go.mod .
-COPY go.sum .
+# Build go bindings
+RUN cd rife-ncnn-vulkan-go/rife-wrapper && \
+    cmake -B build && \
+    cd build && \
+    make -j$(nproc)
 
-# Copy all .go files in the current directory
-COPY *.go ./
+######################################################
 
-# Copy the entire migrations directory
-COPY migrations ./migrations/
+FROM golang:1.23.0-bullseye AS golang-base
 
-# Copy the entire views directory
-COPY views ./views/
+RUN apt-get update && apt-get install -y \
+    libvulkan-dev
 
-RUN go mod download && go build -tags=release -o interpolarr .
+WORKDIR /app
+COPY go.work go.work.sum ./
+COPY interpolarr/ interpolarr/
+COPY rife-ncnn-vulkan-go/ rife-ncnn-vulkan-go/
+COPY --from=rife-bindings /app/rife-ncnn-vulkan-go/rife-wrapper/build /app/rife-ncnn-vulkan-go/rife-wrapper/build
+
+# Build interpolarr
+RUN cd interpolarr && \
+    go mod download && go build -tags=release -o interpolarr .
 
 ######################################################
 
@@ -103,6 +116,7 @@ RUN apt-get update && apt-get install -y \
     # Miscellaneous tools
     wget \             
     unzip \
+    dos2unix \
     gosu \
     # Cleanup package manager cache to reduce image size
     && rm -rf /var/lib/apt/lists/*
@@ -110,21 +124,11 @@ RUN apt-get update && apt-get install -y \
 # Copy ffmpeg build and interpolarr
 WORKDIR /interpolarr
 COPY --from=builder /usr/local /usr/local
-COPY --from=golang-base /app/interpolarr /interpolarr/interpolarr
-COPY entrypoint.sh ./
-COPY .env.docker ./
-COPY docker_default.yml ./config.yml
-
-# Script to fetch the latest release of RIFE NCNN Vulkan
-RUN wget https://api.github.com/repos/TNTwise/rife-ncnn-vulkan/releases/latest \
-    -O - | grep "browser_download_url.*ubuntu.zip" | cut -d : -f 2,3 | tr -d \" | wget -qi - \
-    && mkdir temp_dir && unzip ubuntu.zip -d temp_dir \
-    && mv temp_dir/ubuntu/* ./ \
-    && rm -r temp_dir \
-    && rm ubuntu.zip \
-    && chmod +x ./entrypoint.sh \
-    # Configure vulkan to use GPU for some reasons
-    && export VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json  
+COPY --from=golang-base /app/interpolarr/interpolarr /interpolarr/interpolarr
+COPY interpolarr/entrypoint.sh ./
+COPY interpolarr/.env.docker ./
+COPY interpolarr/docker_default.yml ./config.yml
+RUN chmod +x ./entrypoint.sh && dos2unix ./entrypoint.sh
 
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 ENV NVIDIA_VISIBLE_DEVICES=all

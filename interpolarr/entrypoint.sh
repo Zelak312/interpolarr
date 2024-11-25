@@ -27,9 +27,9 @@ if [ -n "$PUID" ] && [ -n "$PGID" ]; then
     fi
     # Start the app under the defined user
     echo "Starting app under user: $(id -u $PUID)"
-    env | gosu $PUID:$PGID ./interpolarr
+    env | gosu $PUID:$PGID ./interpolarr "$@"
 else
     # Start the app as root
     chown -R $(id -u):$(id -g) /interpolarr
-    env | ./interpolarr
+    env | ./interpolarr "$@"
 fi

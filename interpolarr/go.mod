@@ -1,6 +1,6 @@
-module github.com/Zelak312/interpolarr
+module github.com/Zelak312/interpolarr/interpolarr
 
-go 1.21.5
+go 1.23.0
 
 require (
 	github.com/gin-contrib/static v1.1.2

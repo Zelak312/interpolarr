@@ -1,7 +1,10 @@
 version: '3.8'
 services:
   interpolarr:
-    build: .
+    build:
+      context: ../
+      dockerfile: ./interpolarr/Dockerfile
+
     restart: unless-stopped
     environment:
       MODEL_PATH: "rife-v4.7" # example of changing configuration in docker

@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
+	"io"
+	"math"
 	"os"
 	"path"
 	"sync"
 
+	"github.com/Zelak312/interpolarr/rife-ncnn-vulkan-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -254,7 +256,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		w.logger.Debug("Using tmp file")
 		outputPath = outputPath + ".tmp"
 
-    log.Debugf("checking tmp path: %s", outputPath)
+		log.Debugf("checking tmp path: %s", outputPath)
 		videoTmpExist, err := PathExist(outputPath)
 		if err != nil {
 			return "", ProcessVideoOutput{}
@@ -266,108 +268,130 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		}
 	}
 
-	processFolderWorker := path.Join(w.poolWorker.config.ProcessFolder, fmt.Sprintf("worker_%d", w.workerInfo.ID))
-	if _, err := os.Stat(processFolderWorker); err == nil {
-		err := os.RemoveAll(processFolderWorker)
-		if err != nil {
-			return "", ProcessVideoOutput{err: err}
-		}
-	}
-
 	progressChan := make(chan float64)
 	defer close(progressChan)
 	go w.updateProgress(progressChan)
 
-	w.logger.Info("Getting video fps and framecount")
-	w.updateStep("Getting FPS Framecount")
+	w.logger.Info("Getting video information")
+	w.updateStep("Getting video information")
 	videoInfo, output, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}
 
-	w.logger.Info("fps: ", videoInfo.Fps)
-	w.logger.Info("target FPS: ", w.poolWorker.config.TargetFPS)
+	w.logger.Info("fps: ", videoInfo.FrameRate)
+	w.logger.Info("target fps: ", w.poolWorker.config.TargetFPS)
 	w.logger.Info("framecount: ", videoInfo.FrameCount)
 
-	if videoInfo.Fps >= w.poolWorker.config.TargetFPS {
+	if videoInfo.FrameRate >= w.poolWorker.config.TargetFPS {
 		w.logger.Info(`Video is already higher or equal to target FPS, skipping`)
 		return "", ProcessVideoOutput{skip: true}
 	}
 
-	targetFrameCount := int64(float64(videoInfo.FrameCount) / videoInfo.Fps * w.poolWorker.config.TargetFPS)
+	targetFrameCount := int64(float64(videoInfo.FrameCount) / videoInfo.FrameRate * w.poolWorker.config.TargetFPS)
+	scale := float64(videoInfo.FrameCount) / float64(targetFrameCount)
 	w.logger.Info("Calculated frame target: ", targetFrameCount)
+	w.logger.Info("Calculated scale: ", scale)
 
-	w.logger.Debug("Creating worker folder if doesn't exist")
-	err = os.MkdirAll(processFolderWorker, os.ModePerm)
+	// Setup rife
+	w.logger.Info("Setup rife")
+	config := rife.DefaultConfig(videoInfo.Width, videoInfo.Height)
+	r, err := rife.New(config)
 	if err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	// Not used anymore but is needed for older rife models
-	// so keeping it here
-	// w.logger.Infof("Converting video to %g fps", p.con)
-	// fpsConversionOutput := path.Join(processFolderWorker, "video.mp4")
-	// output, err := ConvertVideoToFPS(p.ctx, p.config.FfmpegOptions, video.Path, fpsConversionOutput, targetFPS/2)
-	// if err != nil {
-	// 	return output, ProcessVideoOutput{err: err}
-	// }
-
-	w.logger.Info("Extracting audio from the video")
-	w.updateStep("Extracting audio")
-	audioPath := path.Join(processFolderWorker, "audio.m4a")
-	output, err = ExtractAudio(w.poolWorker.ctx, video.Path, audioPath, progressChan)
-	if err != nil {
-		return output, ProcessVideoOutput{err: err}
-	}
-
-	w.logger.Debug("Creating frames folder")
-	framesFolder := path.Join(processFolderWorker, "frames")
-	err = os.Mkdir(framesFolder, os.ModePerm)
+	defer r.Close()
+	err = r.LoadModel(w.poolWorker.config.ModelPath)
 	if err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	w.logger.Info("Extracting video frames")
-	w.updateStep("Extracting frames")
-	output, err = ExtractFrames(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions, video.Path, framesFolder, progressChan)
-	if err != nil {
-		return output, ProcessVideoOutput{err: err}
-	}
-
-	w.logger.Debug("Creating interpolation frames folder")
-	interpolatedFolder := path.Join(processFolderWorker, "interpolated_frames")
-	err = os.Mkdir(interpolatedFolder, os.ModePerm)
+	// Setup ffmpeg processor
+	w.logger.Info("Setup ffmpeg processor")
+	vp, err := NewVideoProcessor(videoInfo, w.poolWorker.config.FFmpegOptions)
 	if err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	w.logger.Info("Interpolating video")
+	if err := vp.StartReading(w.poolWorker.ctx); err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
+
+	if err := vp.StartWriting(w.poolWorker.ctx, video.OutputPath, w.poolWorker.config.TargetFPS); err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
+
+	defer vp.Close()
+	frame1, err := vp.ReadFrame()
+	if err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
+
+	frame2, err := vp.ReadFrame()
+	if err != nil {
+		return "", ProcessVideoOutput{err: err}
+	}
+
+	w.logger.Info("Start inpterpolation loop")
 	w.updateStep("Interpolating frames")
-	output, err = InterpolateVideo(w.poolWorker.ctx, w.poolWorker.config.RifeBinary, framesFolder, interpolatedFolder,
-		w.poolWorker.config.ModelPath, targetFrameCount, w.poolWorker.config.RifeExtraArguments, progressChan)
-	if err != nil {
-		return output, ProcessVideoOutput{err: err}
-	}
+	currentIdx := int64(0)
+	for i := int64(0); i < targetFrameCount; i++ {
+		// Calculate frame position and timestep
+		fx := float64(i) * scale
+		sx := int64(math.Floor(fx))
+		timestep := float32(fx - float64(sx))
 
-	w.logger.Infof("Reconstructing video with audio and interpolated frames to %g fps", w.poolWorker.config.TargetFPS)
-	w.updateStep("Reconstructing video")
-	output, err = ConstructVideoToFPS(w.poolWorker.ctx, w.poolWorker.config.FfmpegOptions,
-		interpolatedFolder, audioPath, outputPath, w.poolWorker.config.TargetFPS, progressChan)
-	if err != nil {
-		return output, ProcessVideoOutput{err: err}
-	}
+		// Handle bounds
+		if sx < 0 {
+			sx = 0
+			timestep = 0
+		}
+		if sx >= videoInfo.FrameCount-1 {
+			sx = videoInfo.FrameCount - 2
+			timestep = 1
+		}
 
-	if useTmpFile {
-		w.logger.Debug("Moving tmp file to output path since everything was succesful")
-		RenameOverwrite(outputPath, video.OutputPath)
-	}
+		// Read frames until we reach the needed base frame
+		for currentIdx < sx {
+			frame1 = frame2
+			frame2, err = vp.ReadFrame()
+			if err != nil {
+				if err == io.EOF {
+					// TODO warn on this
+					progressChan <- 100
+					break
+				}
 
-	w.logger.Debug("Removing worker folder")
-	err = os.RemoveAll(processFolderWorker)
-	if err != nil {
-		return "", ProcessVideoOutput{err: err}
-	}
+				return "", ProcessVideoOutput{err: err}
+			}
+			currentIdx++
+		}
 
+		// Generate and write frame
+		if timestep == 0 {
+			// Direct frame
+			if err := vp.WriteFrame(frame1); err != nil {
+				return "", ProcessVideoOutput{err: err}
+			}
+		} else {
+			// Interpolated frame
+			interpolated, err := r.InterpolateBGR(frame1.Data, frame2.Data, timestep)
+			if err != nil {
+				return "", ProcessVideoOutput{err: err}
+			}
+
+			if err := vp.WriteFrame(Frame{
+				Data:   interpolated,
+				Width:  vp.Width(),
+				Height: vp.Height(),
+			}); err != nil {
+				return "", ProcessVideoOutput{err: err}
+			}
+		}
+
+		progressChan <- float64(i) / float64(targetFrameCount) * 100
+	}
 	return "", ProcessVideoOutput{}
 }
 
