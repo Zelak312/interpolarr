@@ -283,7 +283,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 
 	// Setup ffmpeg processor
 	w.logger.Info("Setup ffmpeg processor")
-	vp, err := NewVideoProcessor(videoInfo)
+	vp, err := NewVideoProcessor(videoInfo, w.poolWorker.config.FfmpegOptions)
 	if err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}

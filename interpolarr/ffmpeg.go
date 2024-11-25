@@ -27,6 +27,7 @@ type Frame struct {
 
 type VideoProcessor struct {
 	videoInfo VideoInfo
+	options   FFmpegOptions
 	frameSize int
 
 	// I/O handlers
@@ -136,22 +137,28 @@ func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, string, er
 	return &videoInfo, output, nil
 }
 
-func NewVideoProcessor(videoInfo *VideoInfo) (*VideoProcessor, error) {
+func NewVideoProcessor(videoInfo *VideoInfo, options FFmpegOptions) (*VideoProcessor, error) {
 	frameSize := videoInfo.Width * videoInfo.Height * 3
 
 	return &VideoProcessor{
 		videoInfo: *videoInfo,
+		options:   options,
 		frameSize: frameSize,
 	}, nil
 }
 
 func (vp *VideoProcessor) StartReading(ctx context.Context) error {
-	vp.reader = NewCommandContext(ctx, "ffmpeg",
-		"-hwaccel", "cuda",
-		"-i", vp.videoInfo.InputPath,
+	args := []string{}
+	if vp.options.HWAccelDecodeFlag != "" {
+		args = append(args, "-hwaccel", vp.options.HWAccelDecodeFlag)
+	}
+
+	args = append(args, "-i", vp.videoInfo.InputPath,
 		"-f", "rawvideo",
 		"-pix_fmt", "rgb24",
 		"pipe:1")
+
+	vp.reader = NewCommandContext(ctx, "ffmpeg", args...)
 
 	vp.reader.DisableOutputBuffer()
 	stdout, err := vp.reader.GetStdout()
@@ -164,18 +171,25 @@ func (vp *VideoProcessor) StartReading(ctx context.Context) error {
 }
 
 func (vp *VideoProcessor) StartWriting(ctx context.Context, outputPath string, outputFrameRate float64) error {
-	vp.writer = NewCommandContext(ctx, "ffmpeg",
+	args := []string{
 		"-f", "rawvideo",
 		"-pix_fmt", "rgb24",
 		"-video_size", fmt.Sprintf("%dx%d", vp.videoInfo.Width, vp.videoInfo.Height),
 		"-framerate", fmt.Sprintf("%f", outputFrameRate),
 		"-i", "pipe:0",
 		"-i", vp.videoInfo.InputPath,
-		"-c:v", "h264_nvenc",
+	}
+	if vp.options.HWAccelDecodeFlag != "" {
+		args = append(args, "-c:v", vp.options.HWAccelEncodeFlag)
+	}
+
+	args = append(args, "-c:v", "h264_nvenc",
 		"-c:a", "copy",
 		"-crf", "20",
 		"-pix_fmt", "yuv420p",
 		outputPath)
+
+	vp.writer = NewCommandContext(ctx, "ffmpeg", args...)
 
 	stdin, err := vp.writer.GetStdin()
 	if err != nil {

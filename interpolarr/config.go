@@ -11,21 +11,18 @@ import (
 type Config struct {
 	BindAddress                 string        `yaml:"bindAddress"`
 	Port                        int32         `yaml:"port"`
-	RifeBinary                  string        `yaml:"rifeBinary"`
-	ProcessFolder               string        `yaml:"processFolder"`
 	DatabasePath                string        `yaml:"databasePath"`
 	LogPath                     string        `yaml:"logPath"`
 	ModelPath                   string        `yaml:"modelPath"`
 	Workers                     int           `yaml:"workers"`
 	TargetFPS                   float64       `yaml:"targetFPS"`
+	FfmpegOptions               FFmpegOptions `yaml:"ffmpegOptions"`
 	DeleteInputFileWhenFinished *bool         `yaml:"deleteInputFileWhenFinished"`
-	FfmpegOptions               FfmpegOptions `yaml:"ffmpegOptions"`
 	DeleteOutputIfAlreadyExist  *bool         `yaml:"deleteOutputIfAlreadyExist"`
 	CopyFileToDestinationOnSkip *bool         `yaml:"copyFileToDestinationOnSkip"`
-	RifeExtraArguments          string        `yaml:"rifeExtraArguments"`
 }
 
-type FfmpegOptions struct {
+type FFmpegOptions struct {
 	HWAccelDecodeFlag string `yaml:"HWAccelDecodeFlag"`
 	HWAccelEncodeFlag string `yaml:"HWAccelEncodeFlag"`
 }
@@ -42,14 +39,6 @@ func verifyConfig(config *Config) error {
 
 	if config.Port == 0 {
 		config.Port = 80
-	}
-
-	if config.RifeBinary == "" {
-		return errors.New("missing rife binary path in config")
-	}
-
-	if config.ProcessFolder == "" {
-		return errors.New("missing temp process folder in config")
 	}
 
 	if config.DatabasePath == "" {
