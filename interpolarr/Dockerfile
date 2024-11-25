@@ -119,9 +119,7 @@ RUN apt-get update && apt-get install -y \
     dos2unix \
     gosu \
     # Cleanup package manager cache to reduce image size
-    && rm -rf /var/lib/apt/lists/* \
-    # Configure vulkan to use GPU for some reasons
-    && export VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy ffmpeg build and interpolarr
 WORKDIR /interpolarr
