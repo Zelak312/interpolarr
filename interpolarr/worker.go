@@ -318,7 +318,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 		return "", ProcessVideoOutput{err: err}
 	}
 
-	if err := vp.StartWriting(w.poolWorker.ctx, video.OutputPath, w.poolWorker.config.TargetFPS); err != nil {
+	if err := vp.StartWriting(w.poolWorker.ctx, outputPath, w.poolWorker.config.TargetFPS); err != nil {
 		return "", ProcessVideoOutput{err: err}
 	}
 
@@ -392,6 +392,15 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 
 		progressChan <- float64(i) / float64(targetFrameCount) * 100
 	}
+
+	if useTmpFile {
+		w.logger.Debug("Moving tmp file to output path since everything was succesful")
+		err := RenameOverwrite(outputPath, video.OutputPath)
+		if err != nil {
+			w.logger.Errorf("Error when renaming overwrite: %v", err)
+		}
+	}
+
 	return "", ProcessVideoOutput{}
 }
 
