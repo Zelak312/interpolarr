@@ -43,7 +43,7 @@ func IsSamePath(p1 string, p2 string) (bool, error) {
 	return absPath1 == absPath2, nil
 }
 
-func FileExist(f string) (bool, error) {
+func PathExist(f string) (bool, error) {
 	var err error
 	if _, err = os.Stat(f); errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -52,4 +52,9 @@ func FileExist(f string) (bool, error) {
 	}
 
 	return true, err
+}
+
+func RenameOverwrite(src string, dest string) error {
+	_ = os.Remove(dest)
+	return os.Rename(src, dest)
 }
