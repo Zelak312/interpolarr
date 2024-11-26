@@ -7,6 +7,8 @@ import (
 	"math"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/Zelak312/interpolarr/rife-ncnn-vulkan-go"
@@ -35,6 +37,9 @@ type WorkerInfo struct {
 
 func NewWorker(id int, logger *logrus.Entry, poolWoker *PoolWorker, hub *Hub) *Worker {
 	return &Worker{
+		workerInfo: WorkerInfo{
+			ID: id,
+		},
 		logger:     logger,
 		poolWorker: poolWoker,
 		hub:        hub,
@@ -254,7 +259,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 
 	if useTmpFile {
 		w.logger.Debug("Using tmp file")
-		outputPath = outputPath + ".tmp"
+		outputPath = strings.TrimSuffix(outputPath, filepath.Ext(outputPath)) + ".tmp" + filepath.Ext(outputPath)
 
 		log.Debugf("checking tmp path: %s", outputPath)
 		videoTmpExist, err := PathExist(outputPath)
