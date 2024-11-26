@@ -2,6 +2,17 @@
 #include "rife.h"
 #include <string>
 
+#ifdef _WIN32
+#include <codecvt>
+#include <locale>
+
+// Convert std::string to std::wstring
+std::wstring stringToWstring(const std::string& str) {
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    return converter.from_bytes(str);
+}
+#endif
+
 // Implementation of the RifeWrapped class
 class RifeWrapped : public RIFE
 {
@@ -13,7 +24,11 @@ public:
     {
     }
 
-    int load(const std::string &modeldir)
+#if _WIN32
+    int load(const std::wstring& modeldir)
+#else
+    int load(const std::string& modeldir)
+#endif
     {
         return RIFE::load(modeldir);
     }
@@ -56,7 +71,11 @@ extern "C"
             return -1;
 
         RifeWrapped *rife = reinterpret_cast<RifeWrapped *>(ctx);
+    #ifdef _WIN32
+        return rife->load(stringToWstring(modeldir));
+    #else
         return rife->load(std::string(modeldir));
+    #endif
     }
 
     int rife_process_frames(Rife_Ctx *ctx,
