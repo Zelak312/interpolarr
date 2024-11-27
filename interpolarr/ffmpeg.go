@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 )
 
 type FFProbeOutput struct {
@@ -28,7 +30,15 @@ type Frame struct {
 type VideoProcessor struct {
 	videoInfo VideoInfo
 	options   FFmpegOptions
-	frameSize int
+
+	shouldReadFrame        int32
+	currentFrameBuffer     []byte
+	readFrameBufferChannel chan Frame
+	readFrameError         error
+
+	shouldWriteFrame        int32
+	writeFrameBufferChannel chan Frame
+	writeFrameError         error
 
 	// I/O handlers
 	reader *Command
@@ -137,13 +147,15 @@ func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, string, er
 	return &videoInfo, output, nil
 }
 
-func NewVideoProcessor(videoInfo *VideoInfo, options FFmpegOptions) (*VideoProcessor, error) {
+func NewVideoProcessor(frameBufferChannelLengths int, videoInfo *VideoInfo, options FFmpegOptions) (*VideoProcessor, error) {
 	frameSize := videoInfo.Width * videoInfo.Height * 3
 
 	return &VideoProcessor{
-		videoInfo: *videoInfo,
-		options:   options,
-		frameSize: frameSize,
+		videoInfo:               *videoInfo,
+		options:                 options,
+		currentFrameBuffer:      make([]byte, frameSize),
+		readFrameBufferChannel:  make(chan Frame, frameBufferChannelLengths),
+		writeFrameBufferChannel: make(chan Frame, frameBufferChannelLengths),
 	}, nil
 }
 
@@ -167,6 +179,23 @@ func (vp *VideoProcessor) StartReading(ctx context.Context) error {
 	}
 
 	vp.stdout = stdout
+
+	// Start reading frame in goroutine to fill up
+	// The read frame buffer channel
+	// TODO: use ctx to close
+	atomic.StoreInt32(&vp.shouldReadFrame, 1)
+	go func() {
+		defer close(vp.readFrameBufferChannel)
+		for atomic.LoadInt32(&vp.shouldReadFrame) == 1 {
+			err := vp.readFrameInternal()
+			if err != nil {
+				atomic.StoreInt32(&vp.shouldReadFrame, 0)
+				vp.readFrameError = err
+				break
+			}
+		}
+	}()
+
 	return vp.reader.Start()
 }
 
@@ -197,30 +226,71 @@ func (vp *VideoProcessor) StartWriting(ctx context.Context, outputPath string, o
 	}
 
 	vp.stdin = stdin
+
+	// Start writing frame in goroutine
+	// TODO: use ctx to close
+	atomic.StoreInt32(&vp.shouldWriteFrame, 1)
+	go func() {
+		defer close(vp.writeFrameBufferChannel)
+		for atomic.LoadInt32(&vp.shouldWriteFrame) == 1 {
+			frame := <-vp.writeFrameBufferChannel
+			err := vp.writeFrameInternal(frame)
+			if err != nil {
+				atomic.StoreInt32(&vp.shouldWriteFrame, 0)
+				vp.writeFrameError = err
+				break
+			}
+		}
+	}()
+
 	return vp.writer.Start()
 }
 
-func (vp *VideoProcessor) ReadFrame() (Frame, error) {
-	buf := make([]byte, vp.frameSize)
-	_, err := io.ReadFull(vp.stdout, buf)
+func (vp *VideoProcessor) readFrameInternal() error {
+	_, err := io.ReadFull(vp.stdout, vp.currentFrameBuffer)
 	if err != nil {
-		return Frame{}, err
+		return err
 	}
 
-	return Frame{
-		Data:   buf,
+	vp.readFrameBufferChannel <- Frame{
+		Data:   slices.Clone(vp.currentFrameBuffer),
 		Width:  vp.videoInfo.Width,
 		Height: vp.videoInfo.Height,
-	}, nil
+	}
+
+	return nil
 }
 
-func (vp *VideoProcessor) WriteFrame(frame Frame) error {
+func (vp *VideoProcessor) ReadFrame() (Frame, error) {
+	frame, ok := <-vp.readFrameBufferChannel
+	if !ok {
+		return Frame{}, vp.readFrameError
+	}
+
+	return frame, nil
+}
+
+func (vp *VideoProcessor) writeFrameInternal(frame Frame) error {
 	_, err := vp.stdin.Write(frame.Data)
 	return err
 }
 
+func (vp *VideoProcessor) WriteFrame(frame Frame) error {
+	if atomic.LoadInt32(&vp.shouldWriteFrame) == 0 {
+		return vp.writeFrameError
+	}
+
+	vp.writeFrameBufferChannel <- frame
+	return nil
+}
+
 func (vp *VideoProcessor) Close() error {
 	var errors []error
+
+	// Stop reading loop
+	// Will also close channel
+	atomic.StoreInt32(&vp.shouldReadFrame, 0)
+	atomic.StoreInt32(&vp.shouldWriteFrame, 0)
 
 	if vp.stdin != nil {
 		if err := vp.stdin.Close(); err != nil {
@@ -250,4 +320,3 @@ func (vp *VideoProcessor) Close() error {
 func (vp *VideoProcessor) Width() int         { return vp.videoInfo.Width }
 func (vp *VideoProcessor) Height() int        { return vp.videoInfo.Height }
 func (vp *VideoProcessor) FrameRate() float64 { return vp.videoInfo.FrameRate }
-func (vp *VideoProcessor) FrameSize() int     { return vp.frameSize }
