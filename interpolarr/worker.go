@@ -279,7 +279,7 @@ func (w *Worker) processVideo(video *Video) (string, ProcessVideoOutput) {
 
 	w.logger.Info("Getting video information")
 	w.updateStep("Getting video information")
-	videoInfo, output, err := GetVideoInfo(w.poolWorker.ctx, video.Path)
+	videoInfo, output, err := GetVideoInfo(w.poolWorker.ctx, video.Path, w.poolWorker.config.NumberOfThreadsForFFprobe)
 	if err != nil {
 		return output, ProcessVideoOutput{err: err}
 	}

@@ -20,6 +20,7 @@ type Config struct {
 	DeleteInputFileWhenFinished *bool         `yaml:"deleteInputFileWhenFinished"`
 	DeleteOutputIfAlreadyExist  *bool         `yaml:"deleteOutputIfAlreadyExist"`
 	CopyFileToDestinationOnSkip *bool         `yaml:"copyFileToDestinationOnSkip"`
+	NumberOfThreadsForFFprobe   *int          `yaml:"numberOfThreadsForFFprobe"`
 }
 
 type FFmpegOptions struct {

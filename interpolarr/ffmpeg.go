@@ -68,7 +68,7 @@ func parseVideoInfoFFProbeOutput(output string) (*FFProbeOutput, error) {
 	return &probeOutput, nil
 }
 
-func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, string, error) {
+func GetVideoInfo(ctx context.Context, inputPath string, threads *int) (*VideoInfo, string, error) {
 	cmd := NewCommandContext(ctx, "ffprobe",
 		"-v", "error",
 		"-select_streams", "v:0",
@@ -120,13 +120,20 @@ func GetVideoInfo(ctx context.Context, inputPath string) (*VideoInfo, string, er
 	}
 
 	// container doesn't have frame count, counting frames
-	cmd = NewCommandContext(ctx, "ffprobe",
+	args := []string{}
+	if threads != nil {
+		args = append(args, "-threads", string(*threads))
+	}
+
+	args = append(args,
 		"-v", "error",
 		"-select_streams", "v:0",
 		"-count_frames",
 		"-show_entries", "stream=nb_read_frames",
 		"-of", "json",
-		inputPath)
+		inputPath,
+	)
+	cmd = NewCommandContext(ctx, "ffprobe", args...)
 
 	output, err = cmd.CombinedOutput()
 	if err != nil {
