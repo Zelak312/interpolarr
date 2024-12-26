@@ -122,7 +122,7 @@ func GetVideoInfo(ctx context.Context, inputPath string, threads *int) (*VideoIn
 	// container doesn't have frame count, counting frames
 	args := []string{}
 	if threads != nil {
-		args = append(args, "-threads", string(*threads))
+		args = append(args, "-threads", strconv.Itoa(*threads))
 	}
 
 	args = append(args,
@@ -219,9 +219,12 @@ func (vp *VideoProcessor) StartWriting(ctx context.Context, outputPath string, o
 		args = append(args, "-c:v", vp.options.HWAccelEncodeFlag)
 	}
 
-	args = append(args, "-c:v", "h264_nvenc",
-		"-c:a", "copy",
-		"-crf", "20",
+	args = append(args,
+		"-map", "0:v:0", // First input's first video stream
+		"-map", "1:a", // Second input's all audio streams
+		"-map", "1:s?", // Second input's all subtitle streams (if any)
+		"-c:a", "copy", // Copy audio
+		"-c:s", "copy", // Copy subtitles
 		"-pix_fmt", "yuv420p",
 		outputPath)
 
